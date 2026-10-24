@@ -190,6 +190,30 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(row["login"], "ada")
 
 
+class LinkedInTests(unittest.TestCase):
+    def test_found_in_social_links_website_or_bio(self):
+        social = {"nodes": [{"provider": "TWITTER", "url": "https://twitter.com/ada"},
+                            {"provider": "LINKEDIN", "url": "https://www.linkedin.com/in/ada-lovelace/"}]}
+        self.assertEqual(normalize(raw_user(socialAccounts=social))["linkedin"], "https://www.linkedin.com/in/ada-lovelace")
+        generic = {"nodes": [{"provider": "GENERIC", "url": "https://uk.linkedin.com/in/ada123"}]}
+        self.assertEqual(normalize(raw_user(socialAccounts=generic))["linkedin"], "https://www.linkedin.com/in/ada123")
+        self.assertEqual(normalize(raw_user(websiteUrl="linkedin.com/in/ada"))["linkedin"], "https://www.linkedin.com/in/ada")
+        self.assertEqual(normalize(raw_user(bio="ML eng · linkedin.com/in/ada-l"))["linkedin"],
+                         "https://www.linkedin.com/in/ada-l")
+        self.assertEqual(normalize(raw_user())["linkedin"], "")
+
+    def test_outputs_exact_link_or_search(self):
+        linked = normalize(raw_user(socialAccounts={"nodes": [{"provider": "LINKEDIN", "url": "https://linkedin.com/in/ada"}]}))
+        unlinked = normalize(raw_user(login="grace", name="Grace Hopper", company="@navy, Harvard"))
+        rows = list(report.rows([(p, score(p, load_roles()["ai"], {}, NOW)) for p in (linked, unlinked)]))
+        self.assertEqual((rows[0]["linkedin"], rows[0]["linkedin_search"]), ("https://www.linkedin.com/in/ada", ""))
+        self.assertEqual(rows[1]["linkedin"], "")
+        self.assertEqual(rows[1]["linkedin_search"],
+                         "https://www.linkedin.com/search/results/people/?keywords=Grace+Hopper+navy")
+        nameless = normalize(raw_user(name=None))
+        self.assertEqual(next(report.rows([(nameless, score(nameless, load_roles()["ai"], {}, NOW))]))["linkedin_search"], "")
+
+
 class RobustnessTests(unittest.TestCase):
     def test_sparse_profile_normalizes(self):
         sparse = {"login": "ghost-ish", "name": "   ", "repositories": None, "repositoriesContributedTo": {"nodes": [None]},

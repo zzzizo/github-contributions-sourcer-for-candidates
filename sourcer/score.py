@@ -103,7 +103,7 @@ def score(profile, role, discovered=None, now=None):
     if profile["hireable"]:
         bonus += 2
         reasons.append("Marked “available for hire” on GitHub")
-    if not (profile["email"] or profile["website"] or profile["twitter"]):
+    if not (profile["email"] or profile["website"] or profile["twitter"] or profile.get("linkedin")):
         flags.append("no public contact")
 
     total = sum(parts[k] * weights[k] for k in weights) / sum(weights.values()) * 100 + bonus

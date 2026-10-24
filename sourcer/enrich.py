@@ -2,6 +2,7 @@
 
 import json
 import re
+import urllib.parse
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,7 @@ fragment U on User {
   login name bio company location email websiteUrl twitterUsername isHireable createdAt url
   followers { totalCount }
   organizations(first: 10) { nodes { login } }
+  socialAccounts(first: 10) { nodes { provider url } }
   repositories(ownerAffiliations: OWNER, isFork: false, first: 30,
                orderBy: {field: STARGAZERS, direction: DESC}) {
     totalCount
@@ -82,6 +84,29 @@ def _text(value):
     return (value or "").strip()
 
 
+LINKEDIN = re.compile(r"linkedin\.com/(?:in|pub)/([A-Za-z0-9%_-]+)", re.I)
+
+
+def find_linkedin(u):
+    """LinkedIn URL the person published on GitHub: social links first, then website, then bio."""
+    candidates = [a.get("url") for a in _nodes(u.get("socialAccounts")) if a.get("provider") == "LINKEDIN"]
+    candidates += [a.get("url") for a in _nodes(u.get("socialAccounts"))]
+    candidates += [u.get("websiteUrl"), u.get("bio")]
+    for text in candidates:
+        match = LINKEDIN.search(text or "")
+        if match:
+            return f"https://www.linkedin.com/in/{match.group(1).rstrip('-_')}"
+    return ""
+
+
+def linkedin_search(name, company):
+    """A LinkedIn people-search link for someone who hasn't linked their profile; a person checks the match."""
+    if not name:
+        return ""
+    words = " ".join([name, company.lstrip("@").split(",")[0].strip()]).strip()
+    return "https://www.linkedin.com/search/results/people/?" + urllib.parse.urlencode({"keywords": words})
+
+
 def _total_contributions(collection):
     return ((collection or {}).get("contributionCalendar") or {}).get("totalContributions") or 0
 
@@ -106,6 +131,7 @@ def normalize(u):
         "email_source": "profile" if _text(u.get("email")) else "",
         "website": _text(u.get("websiteUrl")),
         "twitter": _text(u.get("twitterUsername")),
+        "linkedin": find_linkedin(u),
         "hireable": bool(u.get("isHireable")),
         "url": u.get("url") or f"https://github.com/{u['login']}",
         "created_at": parse_time(u.get("createdAt")),

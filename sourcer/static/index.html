@@ -236,6 +236,8 @@ select.input { width: auto; padding-right: 30px; }
 .links { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-top: 14px; font-size: 13.5px; }
 .links .flag { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; }
 .links .flag.good { color: var(--a); border-color: var(--a-soft); background: var(--a-soft); }
+.links .guess { color: var(--muted); border-bottom: 1px dashed currentColor; }
+.links .guess:hover { color: var(--accent); text-decoration: none; }
 .opener { display: flex; gap: 12px; align-items: center; margin-top: 14px; padding: 10px 12px; background: var(--soft); border-radius: 9px; font-size: 13.5px; }
 .opener span { flex: 1; }
 @media (max-width: 560px) { .opener { flex-direction: column; align-items: stretch; } }
@@ -780,6 +782,13 @@ async function openRun(name) {
 /* ---------- results ---------- */
 const split = (s, sep) => String(s || "").split(sep).map(x => x.trim()).filter(Boolean);
 const tierOf = c => ["A", "B", "C"].includes(c.tier) ? c.tier : "C";
+// Runs made before the LinkedIn columns existed get the same search link the CLI builds.
+function linkedinSearch(c) {
+  if (c.linkedin_search) return c.linkedin_search;
+  if (!c.name || c.linkedin) return "";
+  const words = [c.name, String(c.company || "").replace(/^@/, "").split(",")[0].trim()].join(" ").trim();
+  return "https://www.linkedin.com/search/results/people/?" + new URLSearchParams({ keywords: words });
+}
 
 function renderResults() {
   const { meta, people, name } = state.run;
@@ -831,6 +840,9 @@ function cardHtml(c) {
   if (c.email) links.push(`<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>${c.email_source === "commit" ? ` <span class="muted">(from commits)</span>` : ""}`);
   if (c.website) links.push(`<a href="${esc(safeUrl(c.website))}" target="_blank" rel="noopener">Website</a>`);
   if (c.twitter) links.push(`<a href="${esc(safeUrl(c.twitter))}" target="_blank" rel="noopener">X / Twitter</a>`);
+  if (c.linkedin) links.push(`<a href="${esc(safeUrl(c.linkedin))}" target="_blank" rel="noopener">LinkedIn</a>`);
+  else if (linkedinSearch(c)) links.push(`<a class="guess" href="${esc(linkedinSearch(c))}" target="_blank" rel="noopener"
+    title="Searches LinkedIn by name and company. Check it's the right person.">Find on LinkedIn ↗</a>`);
   const tags = [...(c.hireable === "yes" ? [`<span class="flag good">open to work</span>`] : []), ...flags.map(f => `<span class="flag">${esc(f)}</span>`)];
   const bars = BREAKDOWN.filter(k => c.breakdown && k in c.breakdown).map(k => {
     const v = Math.max(0, Math.min(100, Number(c.breakdown[k]) || 0));

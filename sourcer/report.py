@@ -5,10 +5,11 @@ import html
 import json
 from datetime import datetime
 
+from .enrich import linkedin_search
 from .score import fmt
 
 CSV_FIELDS = ["rank", "tier", "score", "login", "name", "profile_url", "location", "company", "email", "email_source",
-              "website", "twitter", "hireable", "followers", "owned_stars", "top_repo", "seed_contributions",
+              "website", "twitter", "linkedin", "linkedin_search", "hireable", "followers", "owned_stars", "top_repo", "seed_contributions",
               "contributions_last_year", "contributions_90d", "top_languages", "flags", "reasons", "outreach_hook"]
 
 
@@ -20,7 +21,10 @@ def rows(candidates):
             "rank": rank, "tier": s["tier"], "score": s["score"], "login": p["login"], "name": p["name"],
             "profile_url": p["url"], "location": p["location"], "company": p["company"], "email": p["email"],
             "email_source": p["email_source"], "website": p["website"],
-            "twitter": f"https://x.com/{p['twitter']}" if p["twitter"] else "", "hireable": "yes" if p["hireable"] else "",
+            "twitter": f"https://x.com/{p['twitter']}" if p["twitter"] else "",
+            "linkedin": p.get("linkedin", ""),
+            "linkedin_search": "" if p.get("linkedin") else linkedin_search(p["name"], p["company"]),
+            "hireable": "yes" if p["hireable"] else "",
             "followers": p["followers"], "owned_stars": p["owned_stars"],
             "top_repo": p["top_repo"]["name"] if p["top_repo"] else "", "seed_contributions": "; ".join(seeds),
             "contributions_last_year": p["contrib_year"], "contributions_90d": p["contrib_90d"],
@@ -64,6 +68,11 @@ def _card(rank, p, s):
         links.append(f'<a href="{e(site)}" target="_blank" rel="noopener">website</a>')
     if p["twitter"]:
         links.append(f'<a href="https://x.com/{e(p["twitter"])}" target="_blank" rel="noopener">@{e(p["twitter"])}</a>')
+    if p.get("linkedin"):
+        links.append(f'<a href="{e(p["linkedin"])}" target="_blank" rel="noopener">LinkedIn</a>')
+    elif linkedin_search(p["name"], p["company"]):
+        links.append(f'<a href="{e(linkedin_search(p["name"], p["company"]))}" target="_blank" rel="noopener" '
+                     f'title="LinkedIn search by name and company; check it\'s the right person">find on LinkedIn</a>')
     bars = "".join(f'<div class="bar"><span>{e(k)}</span><i style="--w:{v}%"></i><b>{v}</b></div>'
                    for k, v in s["breakdown"].items())
     flags = "".join(f'<span class="flag">{e(f)}</span>' for f in s["flags"])
