@@ -237,12 +237,22 @@ def cmd_search(args):
     print(f"Report: {out_dir / 'report.html'}\nCSV:    {out_dir / 'candidates.csv'}")
 
 
+def cmd_ui(args):
+    from . import web  # imported lazily: web imports this module
+    web.serve(args.port, open_browser=not args.no_browser)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="source.py", description="Find senior engineers on GitHub.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("roles", help="list role presets").set_defaults(func=cmd_roles)
     sub.add_parser("check", help="verify your GitHub token and remaining quota").set_defaults(func=cmd_check)
+
+    u = sub.add_parser("ui", help="open the web app in your browser")
+    u.add_argument("--port", type=int_at_least(1), default=8765, help="port to listen on (default 8765)")
+    u.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
+    u.set_defaults(func=cmd_ui)
 
     s = sub.add_parser("search", help="source candidates for a role")
     s.add_argument("role", help="role preset from roles.json (e.g. ai, founding, backend, web3, smart-contracts, quantum)")

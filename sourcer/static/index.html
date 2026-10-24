@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitHub Sourcer</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f5fd0'/%3E%3Ccircle cx='14' cy='14' r='6.5' fill='none' stroke='white' stroke-width='3'/%3E%3Cpath d='M19 19l6 6' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f6f5f1; --panel: #ffffff; --ink: #1c1c1a; --muted: #6d6c66; --faint: #9a9993; --line: #e5e3dc;
+  --soft: #f0eee8; --accent: #2f5fd0; --accent-soft: #e8eefc; --accent-ink: #ffffff;
+  --a: #1f8a4c; --a-soft: #e3f3ea; --b: #b7791f; --b-soft: #f8eedc; --c: #7d7c76; --c-soft: #efeee9;
+  --danger: #c0392b; --danger-soft: #fbe9e7; --shadow: 0 1px 2px rgba(20,20,10,.04), 0 4px 16px rgba(20,20,10,.04);
+  --radius: 12px; --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #121211; --panel: #1b1b19; --ink: #ecebe5; --muted: #a09f98; --faint: #74736d; --line: #2e2d2a;
+    --soft: #242320; --accent: #7ea6ff; --accent-soft: #1e2a45; --accent-ink: #0d1a33;
+    --a: #4cc488; --a-soft: #183325; --b: #e0a948; --b-soft: #3a2d15; --c: #9a9993; --c-soft: #2a2926;
+    --danger: #ff8a7a; --danger-soft: #3a1d19; --shadow: 0 1px 2px rgba(0,0,0,.3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14.5px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.hidden { display: none !important; }
+.muted { color: var(--muted); }
+
+/* top bar */
+.top { height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 20px; border-bottom: 1px solid var(--line);
+  background: var(--panel); position: sticky; top: 0; z-index: 5; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 16px; letter-spacing: -.01em; }
+.brand-mark { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+.brand-mark svg { width: 16px; height: 16px; }
+.brand small { font-weight: 400; color: var(--muted); font-size: 13px; }
+.spacer { flex: 1; }
+.chip-status { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 999px;
+  padding: 5px 12px; font-size: 13px; background: var(--panel); cursor: default; white-space: nowrap; }
+.chip-status.clickable { cursor: pointer; }
+.chip-status.clickable:hover { border-color: var(--accent); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.dot.ok { background: var(--a); } .dot.bad { background: var(--danger); } .dot.warn { background: var(--b); }
+
+/* layout */
+.app { display: grid; grid-template-columns: 380px minmax(0, 1fr); height: calc(100vh - 56px); }
+.side { border-right: 1px solid var(--line); overflow-y: auto; background: var(--panel); }
+.main { overflow-y: auto; }
+.main-inner { max-width: 1080px; margin: 0 auto; padding: 28px 28px 80px; }
+@media (max-width: 900px) {
+  .app { display: block; height: auto; }
+  .side { border-right: 0; border-bottom: 1px solid var(--line); }
+  .main-inner { padding: 20px 16px 64px; }
+  .top { padding: 0 16px; }
+  .brand small { display: none; }
+  .chip-status .long { display: none; }
+  .res-head .row { flex-wrap: wrap; }
+}
+
+/* form */
+.section { padding: 20px 20px 4px; }
+.section + .section { border-top: 1px solid var(--line); padding-top: 18px; }
+.label { display: block; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.field { margin-bottom: 16px; }
+.hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.input { width: 100%; border: 1px solid var(--line); background: var(--panel); border-radius: 9px; padding: 9px 12px; outline: none;
+  transition: border-color .15s, box-shadow .15s; }
+.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.input::placeholder { color: var(--faint); }
+.roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.role { text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 10px; padding: 10px 12px;
+  cursor: pointer; transition: border-color .15s, background .15s; min-height: 62px; }
+.role:hover { border-color: var(--faint); }
+.role[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.role b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+.role span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; }
+.chip:hover { border-color: var(--faint); }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.row { display: flex; gap: 10px; align-items: center; }
+.row > * { flex: 1; min-width: 0; }
+.toggle { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; cursor: pointer; }
+.toggle input { appearance: none; width: 34px; height: 20px; border-radius: 999px; background: var(--line); position: relative;
+  flex: none; cursor: pointer; transition: background .15s; margin: 1px 0 0; }
+.toggle input::after { content: ""; position: absolute; width: 16px; height: 16px; border-radius: 50%; background: #fff; top: 2px; left: 2px;
+  transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.toggle input:checked { background: var(--accent); }
+.toggle input:checked::after { transform: translateX(14px); }
+.toggle input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toggle b { display: block; font-weight: 500; font-size: 13.5px; }
+.toggle span { display: block; font-size: 12.5px; color: var(--muted); }
+details.adv { margin: 4px 0 12px; }
+details.adv summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 6px 0; list-style: none; display: flex; align-items: center; gap: 6px; }
+details.adv summary::-webkit-details-marker { display: none; }
+details.adv summary::before { content: "›"; display: inline-block; transition: transform .15s; font-size: 16px; line-height: 1; }
+details.adv[open] summary::before { transform: rotate(90deg); }
+.grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.grid2 .field { margin-bottom: 4px; }
+.mini-label { font-size: 12.5px; color: var(--muted); display: block; margin-bottom: 4px; }
+.run-bar { position: sticky; bottom: 0; background: var(--panel); padding: 14px 20px; border-top: 1px solid var(--line); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); background: var(--panel);
+  border-radius: 9px; padding: 8px 14px; cursor: pointer; font-weight: 500; white-space: nowrap; transition: border-color .15s, background .15s; }
+.btn:hover { border-color: var(--faint); text-decoration: none; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.06); }
+.btn.big { width: 100%; padding: 12px 16px; font-size: 15px; border-radius: 10px; }
+.btn.small { padding: 5px 10px; font-size: 13px; border-radius: 8px; }
+.btn.danger { color: var(--danger); }
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+/* runs list */
+.runs { list-style: none; margin: 0 0 16px; padding: 0; }
+.run-item { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 10px 12px; border-radius: 9px; cursor: pointer; }
+.run-item:hover { background: var(--soft); }
+.run-item[aria-current="true"] { background: var(--accent-soft); }
+.run-item b { display: block; font-weight: 550; font-size: 13.5px; }
+.run-item span { font-size: 12.5px; color: var(--muted); }
+.empty-note { font-size: 13px; color: var(--muted); padding: 4px 0 16px; }
+.job-banner { margin: 16px 20px 0; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); font-size: 13px;
+  display: flex; align-items: center; gap: 10px; cursor: pointer; border: 0; width: calc(100% - 40px); text-align: left; }
+
+/* main: generic */
+h1 { font-size: 26px; letter-spacing: -.02em; margin: 0 0 6px; line-height: 1.2; }
+h2 { font-size: 18px; margin: 0 0 4px; letter-spacing: -.01em; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.lead { color: var(--muted); font-size: 15.5px; max-width: 640px; margin: 0; }
+
+/* welcome */
+.hero { padding: 28px 0 24px; }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin: 24px 0; }
+.step { padding: 18px; }
+.step i { font-style: normal; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent-soft); color: var(--accent); font-weight: 650; font-size: 13px; margin-bottom: 10px; }
+.step b { display: block; margin-bottom: 4px; }
+.step p { margin: 0; color: var(--muted); font-size: 13.5px; }
+.recent { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; margin: 10px 0 24px; }
+.recent button { text-align: left; padding: 14px 16px; cursor: pointer; font: inherit; color: inherit; }
+.recent button:hover { border-color: var(--faint); }
+.recent b { display: block; font-weight: 600; }
+.recent span { font-size: 12.5px; color: var(--muted); }
+.signals { padding: 18px 20px; }
+.signals ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); }
+.signals li { margin: 4px 0; }
+.signals li b { color: var(--ink); font-weight: 550; }
+@media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+
+/* setup */
+.setup { padding: 24px; max-width: 620px; }
+.setup ol { padding-left: 20px; margin: 14px 0 18px; }
+.setup li { margin: 6px 0; }
+.setup code { font-family: var(--mono); font-size: 13px; background: var(--soft); padding: 1px 6px; border-radius: 5px; }
+.error-text { color: var(--danger); font-size: 13.5px; margin-top: 8px; }
+
+/* running */
+.progress-card { padding: 24px; }
+.phases { display: flex; gap: 8px; margin: 18px 0 14px; flex-wrap: wrap; }
+.phase { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--faint); padding: 5px 12px 5px 6px; border-radius: 999px; background: var(--soft); }
+.phase i { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 11px; font-weight: 700;
+  background: var(--line); color: var(--muted); }
+.phase.active { color: var(--ink); background: var(--accent-soft); }
+.phase.active i { background: var(--accent); color: var(--accent-ink); animation: pulse 1.4s ease-in-out infinite; }
+.phase.done { color: var(--ink); }
+.phase.done i { background: var(--a); color: #fff; }
+@keyframes pulse { 50% { box-shadow: 0 0 0 5px var(--accent-soft); } }
+.bar-outer { height: 8px; border-radius: 999px; background: var(--soft); overflow: hidden; }
+.bar-inner { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .5s ease; }
+.progress-meta { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--muted); margin-top: 8px; flex-wrap: wrap; }
+.notice { margin-top: 14px; padding: 10px 12px; border-radius: 9px; background: var(--b-soft); font-size: 13.5px; }
+.notice.bad { background: var(--danger-soft); color: var(--danger); }
+.log { margin-top: 16px; }
+.log summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+.log pre { font-family: var(--mono); font-size: 12px; line-height: 1.55; background: var(--soft); border-radius: 9px; padding: 12px 14px;
+  max-height: 320px; overflow: auto; margin: 8px 0 0; white-space: pre-wrap; word-break: break-word; }
+
+/* results */
+.res-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.res-head > div:first-child { flex: 1; min-width: 240px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 18px; }
+.stat { padding: 14px 16px; }
+.stat b { display: block; font-size: 24px; letter-spacing: -.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12.5px; color: var(--muted); }
+.stat.a b { color: var(--a); } .stat.b b { color: var(--b); }
+@media (max-width: 700px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; position: sticky; top: 0; z-index: 3; background: var(--bg);
+  padding: 10px 0; margin-bottom: 6px; }
+.toolbar .input { flex: 1 1 200px; min-width: 0; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: none; padding: 7px 11px; cursor: pointer; font-size: 13px; border-right: 1px solid var(--line); }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg button small { opacity: .65; margin-left: 4px; }
+select.input { width: auto; padding-right: 30px; }
+.chk { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 0 4px; cursor: pointer; white-space: nowrap; }
+.chk input { accent-color: var(--accent); }
+.count-line { font-size: 13px; color: var(--muted); margin: 4px 0 12px; }
+
+.cards { display: grid; gap: 12px; }
+.card { padding: 18px; }
+.card-top { display: flex; gap: 14px; align-items: flex-start; }
+.avatar { width: 52px; height: 52px; border-radius: 50%; background: var(--soft); flex: none; object-fit: cover; }
+.who { flex: 1; min-width: 0; }
+.who h3 { margin: 0; font-size: 16.5px; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.who h3 a { color: var(--ink); }
+.who h3 .handle { font-weight: 400; color: var(--muted); font-size: 14px; margin-left: 4px; white-space: nowrap; }
+.who h3 .tier-tag { white-space: nowrap; }
+.who .meta { color: var(--muted); font-size: 13.5px; overflow-wrap: anywhere; }
+.rank { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.ring { position: relative; width: 56px; height: 56px; flex: none; }
+.ring svg { width: 56px; height: 56px; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 5; }
+.ring .track { stroke: var(--soft); }
+.ring .val { stroke-linecap: round; }
+.ring b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 17px; font-variant-numeric: tabular-nums; }
+.t-A .val { stroke: var(--a); } .t-B .val { stroke: var(--b); } .t-C .val { stroke: var(--c); }
+.tier-tag { display: inline-block; font-size: 11px; font-weight: 650; padding: 1px 7px; border-radius: 5px; margin-left: 6px; vertical-align: 2px; }
+.tier-tag.t-A { background: var(--a-soft); color: var(--a); } .tier-tag.t-B { background: var(--b-soft); color: var(--b); }
+.tier-tag.t-C { background: var(--c-soft); color: var(--c); }
+.card-body { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 18px; margin-top: 14px; }
+@media (max-width: 760px) { .card-body { grid-template-columns: 1fr; } }
+.reasons { margin: 0; padding-left: 18px; }
+.reasons li { margin: 3px 0; overflow-wrap: anywhere; }
+.more { font-size: 13px; margin-top: 4px; }
+.more summary { cursor: pointer; color: var(--accent); list-style: none; }
+.more summary::-webkit-details-marker { display: none; }
+.bars { display: grid; gap: 5px; font-size: 12px; color: var(--muted); align-content: start; }
+.bar { display: grid; grid-template-columns: 70px 1fr 26px; gap: 8px; align-items: center; }
+.bar i { height: 6px; border-radius: 999px; background: var(--soft); overflow: hidden; display: block; }
+.bar i::before { content: ""; display: block; height: 100%; width: var(--w); background: var(--accent); border-radius: 999px; }
+.bar b { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+.links { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-top: 14px; font-size: 13.5px; }
+.links .flag { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 0 7px; }
+.links .flag.good { color: var(--a); border-color: var(--a-soft); background: var(--a-soft); }
+.opener { display: flex; gap: 12px; align-items: center; margin-top: 14px; padding: 10px 12px; background: var(--soft); border-radius: 9px; font-size: 13.5px; }
+.opener span { flex: 1; }
+@media (max-width: 560px) { .opener { flex-direction: column; align-items: stretch; } }
+.empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+
+/* toast */
+.toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg);
+  padding: 10px 16px; border-radius: 10px; font-size: 13.5px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
+  z-index: 20; max-width: calc(100vw - 32px); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.bad { background: var(--danger); color: #fff; }
+.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent;
+  animation: spin .8s linear infinite; display: inline-block; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="brand-mark"><svg viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg></div>
+    GitHub Sourcer <small>find engineers by the work they've shipped</small>
+  </div>
+  <div class="spacer"></div>
+  <div id="status" class="chip-status"><span class="spinner"></span> Checking GitHub…</div>
+</header>
+
+<div class="app">
+  <aside class="side">
+    <button id="job-banner" class="job-banner hidden" type="button"><span class="spinner"></span><span>A search is running. <u>View progress</u></span></button>
+    <form id="form" autocomplete="off">
+      <div class="section">
+        <span class="label">Role</span>
+        <div id="roles" class="roles"></div>
+        <div id="role-hint" class="hint"></div>
+      </div>
+      <div class="section">
+        <div class="field">
+          <label class="label" for="f-location">Location</label>
+          <input id="f-location" data-field="location" class="input" placeholder="Anywhere — or e.g. sf, london">
+          <div id="loc-chips" class="chips"></div>
+        </div>
+        <div class="field">
+          <label class="label" for="f-limit">Candidates to keep</label>
+          <div class="row">
+            <input id="f-limit-range" type="range" min="10" max="200" step="10" value="50" aria-label="Candidates to keep">
+            <input id="f-limit" data-field="limit" class="input" type="number" min="1" max="1000" value="50" style="flex:0 0 80px">
+          </div>
+        </div>
+        <label class="toggle"><input type="checkbox" data-field="emails"><div><b>Find emails from public commits</b><span>For people without a public email. Slower.</span></div></label>
+        <label class="toggle"><input type="checkbox" data-field="keep_unknown_location"><div><b>Keep people with no location</b><span>Many strong engineers leave it blank.</span></div></label>
+        <label class="toggle"><input type="checkbox" data-field="include_inactive"><div><b>Include inactive accounts</b><span>No activity in the last 12 months.</span></div></label>
+        <div id="exclude-wrap" class="field hidden" style="margin-top:10px">
+          <span class="label">Skip people from earlier runs</span>
+          <div id="exclude-chips" class="chips"></div>
+        </div>
+        <details class="adv">
+          <summary>Advanced options</summary>
+          <div class="field" style="margin-top:8px">
+            <label class="mini-label" for="f-repos">Extra seed repos</label>
+            <input id="f-repos" data-field="repos" class="input" placeholder="owner/name, owner/name">
+          </div>
+          <div class="field">
+            <label class="mini-label" for="f-languages">Search languages (override)</label>
+            <input id="f-languages" data-field="languages" class="input" placeholder="e.g. Rust, Go">
+          </div>
+          <div class="grid2">
+            <div class="field"><label class="mini-label" for="f-min-score">Min score</label><input id="f-min-score" data-field="min_score" class="input" type="number" min="0" max="100" placeholder="0"></div>
+            <div class="field"><label class="mini-label" for="f-max-enrich">Profiles to check</label><input id="f-max-enrich" data-field="max_enrich" class="input" type="number" min="1" placeholder="400"></div>
+            <div class="field"><label class="mini-label" for="f-min-followers">Min followers</label><input id="f-min-followers" data-field="min_followers" class="input" type="number" min="0" placeholder="role default"></div>
+            <div class="field"><label class="mini-label" for="f-min-stars">Min project stars</label><input id="f-min-stars" data-field="min_stars" class="input" type="number" min="0" placeholder="200"></div>
+            <div class="field"><label class="mini-label" for="f-seed-pages">Contributor pages</label><input id="f-seed-pages" data-field="seed_pages" class="input" type="number" min="1" max="10" placeholder="2"></div>
+          </div>
+          <label class="toggle"><input type="checkbox" data-field="refresh"><div><b>Ignore cache</b><span>Fetch everything fresh instead of reusing the last 72h.</span></div></label>
+        </details>
+      </div>
+      <div class="section">
+        <span class="label">Past runs</span>
+        <ul id="runs" class="runs"></ul>
+      </div>
+      <div class="run-bar">
+        <button id="run-btn" class="btn primary big" type="submit">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+          <span>Find candidates</span>
+        </button>
+      </div>
+    </form>
+  </aside>
+
+  <main class="main">
+    <div class="main-inner">
+
+      <section id="view-welcome">
+        <div class="hero">
+          <h1>Find senior engineers by the code they've shipped</h1>
+          <p class="lead">Pick a role on the left, add a location if you like, and press <b>Find candidates</b>. You'll get a ranked shortlist with the reasons behind every score and a ready-to-send opener.</p>
+        </div>
+        <div id="welcome-runs" class="hidden"><span class="label">Recent runs</span><div id="recent" class="recent"></div></div>
+        <div class="steps">
+          <div class="panel step"><i>1</i><b>Discover</b><p>Top contributors to the flagship projects for the role, plus user and topic searches.</p></div>
+          <div class="panel step"><i>2</i><b>Check profiles</b><p>Stars, recent activity, notable contributions, languages and bio for each lead.</p></div>
+          <div class="panel step"><i>3</i><b>Score &amp; shortlist</b><p>A 0–100 score with readable reasons, Tier A/B/C, contacts and an opener.</p></div>
+        </div>
+        <div class="panel signals">
+          <b>How the score works</b>
+          <ul>
+            <li><b>Impact</b> — stars on projects they own</li>
+            <li><b>Seed</b> — commits to the role's flagship repos (the strongest signal)</li>
+            <li><b>Notable</b> — other 1k+ star projects they contributed to this year</li>
+            <li><b>Activity</b> — contributions in the last year and last 90 days</li>
+            <li><b>Experience</b> — account age and followers</li>
+            <li><b>Fit</b> — languages, topics, bio keywords and seniority words</li>
+          </ul>
+          <p class="muted" style="margin:12px 0 0;font-size:13px">Treat the score as a pointer for your own judgement, never as an automatic reject. Contact people once, personally, and honour opt-outs.</p>
+        </div>
+
+      </section>
+
+      <section id="view-setup" class="hidden">
+        <div class="panel setup">
+          <h2>Connect GitHub</h2>
+          <p id="setup-reason" class="muted" style="margin:0">The tool needs a read-only GitHub token to search public profiles.</p>
+          <ol>
+            <li>Open <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a></li>
+            <li>Choose <b>Public repositories (read-only)</b>. No other permissions are needed.</li>
+            <li>Generate it, copy it and paste it below. It's saved to <code>.env</code> on this computer only.</li>
+          </ol>
+          <form id="token-form" class="row">
+            <input id="token" class="input" type="password" placeholder="github_pat_…" autocomplete="off" spellcheck="false">
+            <button class="btn primary" type="submit" style="flex:none">Save &amp; check</button>
+          </form>
+          <div id="token-error" class="error-text hidden"></div>
+        </div>
+      </section>
+
+      <section id="view-running" class="hidden">
+        <div class="panel progress-card">
+          <div class="row" style="align-items:flex-start">
+            <div>
+              <h2 id="run-title">Searching…</h2>
+              <div id="run-sub" class="muted"></div>
+            </div>
+            <button id="cancel-btn" class="btn small danger" type="button" style="flex:none">Cancel</button>
+          </div>
+          <div id="phases" class="phases"></div>
+          <div class="bar-outer"><div id="bar" class="bar-inner"></div></div>
+          <div class="progress-meta"><span id="progress-text">Starting…</span><span id="elapsed"></span></div>
+          <div id="run-notice" class="notice hidden"></div>
+          <details id="log" class="log"><summary>Show live log</summary><pre id="log-pre"></pre></details>
+        </div>
+      </section>
+
+      <section id="view-results" class="hidden">
+        <div class="res-head">
+          <div>
+            <h1 id="res-title"></h1>
+            <div id="res-sub" class="muted"></div>
+          </div>
+          <div class="row" style="flex:none;gap:8px">
+            <button id="copy-emails" class="btn small" type="button">Copy emails</button>
+            <a id="dl-csv" class="btn small" href="#">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8m0 0-3-3m3 3 3-3M3 13h10"/></svg>CSV</a>
+            <a id="open-report" class="btn small" href="#" target="_blank" rel="noopener">Full report ↗</a>
+          </div>
+        </div>
+        <div id="stats" class="stats"></div>
+        <div class="toolbar">
+          <input id="q" class="input" type="search" placeholder="Filter by name, company, repo, location…">
+          <div id="tiers" class="seg" role="group" aria-label="Tier"></div>
+          <label class="chk"><input id="only-email" type="checkbox"> Has email</label>
+          <select id="sort" class="input" aria-label="Sort">
+            <option value="score">Sort: score</option>
+            <option value="followers">Sort: followers</option>
+            <option value="stars">Sort: stars</option>
+            <option value="recent">Sort: recent activity</option>
+          </select>
+        </div>
+        <div id="count-line" class="count-line"></div>
+        <div id="cards" class="cards"></div>
+      </section>
+
+    </div>
+  </main>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+"use strict";
+const $ = (s, root = document) => root.querySelector(s);
+const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const num = n => Number(n || 0).toLocaleString();
+const safeUrl = u => /^https?:\/\//i.test(u) ? u : "https://" + u;
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem("sourcer:" + key); return v === null ? fallback : JSON.parse(v); } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem("sourcer:" + key, JSON.stringify(value)); } catch { /* storage unavailable */ } },
+};
+
+const LOCATIONS = [["sf", "SF Bay Area"], ["nyc", "New York"], ["london", "London"], ["uk", "UK"], ["europe", "Europe"],
+                   ["germany", "Germany"], ["india", "India"], ["singapore", "Singapore"], ["dubai", "Dubai"], ["remote", "Remote"]];
+const BREAKDOWN = ["impact", "seed", "notable", "activity", "experience", "fit"];
+const state = { roles: [], runs: [], role: store.get("role", null), exclude: new Set(), status: null,
+                job: null, run: null, view: "welcome", tier: "all", sort: "score", q: "", onlyEmail: false };
+
+async function api(path, options = {}) {
+  const res = await fetch(path, { ...options, headers: { "Content-Type": "application/json", "X-Sourcer": "1" } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `${res.status} ${res.statusText}`);
+  return data;
+}
+
+let toastTimer;
+function toast(message, bad = false) {
+  const el = $("#toast");
+  el.textContent = message;
+  el.className = "toast show" + (bad ? " bad" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.className = "toast", bad ? 4500 : 2200);
+}
+
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    const ta = Object.assign(document.createElement("textarea"), { value: text });
+    document.body.append(ta); ta.select();
+    const ok = document.execCommand("copy"); ta.remove(); return ok;
+  }
+}
+
+function show(view) {
+  state.view = view;
+  for (const v of ["welcome", "setup", "running", "results"]) $("#view-" + v).classList.toggle("hidden", v !== view);
+  $(".main").scrollTop = 0;
+  updateRunButton();
+}
+
+function timeAgo(iso) {
+  const t = Date.parse(iso);
+  if (!t) return "";
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  if (s < 86400 * 7) return `${Math.floor(s / 86400)} d ago`;
+  return new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+/* ---------- status ---------- */
+async function loadStatus() {
+  const el = $("#status");
+  try { state.status = await api("/api/status"); }
+  catch (err) { state.status = { ok: false, reason: "offline", detail: err.message }; }
+  const s = state.status;
+  el.classList.remove("clickable");
+  el.onclick = null;
+  if (s.ok) {
+    const core = s.limits.core || {}, gql = s.limits.graphql || {};
+    const low = (core.limit && core.remaining < core.limit * 0.1) || (gql.limit && gql.remaining < gql.limit * 0.1);
+    el.innerHTML = `<span class="dot ${low ? "warn" : "ok"}"></span>@${esc(s.login)}<span class="long"> · ${num(gql.remaining)} queries left</span>`;
+    el.title = `REST ${num(core.remaining)}/${num(core.limit)} · GraphQL ${num(gql.remaining)}/${num(gql.limit)} · Search ${num((s.limits.search || {}).remaining)}/${num((s.limits.search || {}).limit)}`;
+    if (state.view === "setup") show(state.run ? "results" : "welcome");
+  } else {
+    const text = { missing: "Connect GitHub", invalid: "Token rejected — fix", offline: "GitHub unreachable" }[s.reason] || "GitHub problem";
+    el.innerHTML = `<span class="dot bad"></span>${text}`;
+    el.title = s.detail || "";
+    if (s.reason !== "offline") {
+      el.classList.add("clickable");
+      el.onclick = () => openSetup();
+      if (!state.job) openSetup();
+    }
+  }
+  updateRunButton();
+}
+
+function openSetup() {
+  const reason = state.status && state.status.reason;
+  $("#setup-reason").textContent = reason === "invalid"
+    ? "GitHub rejected the saved token. It may have expired or been revoked. Paste a new one below."
+    : "The tool needs a read-only GitHub token to search public profiles.";
+  show("setup");
+  setTimeout(() => $("#token").focus(), 50);
+}
+
+$("#token-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const btn = $("#token-form button"), err = $("#token-error");
+  err.classList.add("hidden");
+  btn.disabled = true; btn.textContent = "Checking…";
+  try {
+    state.status = await api("/api/token", { method: "POST", body: JSON.stringify({ token: $("#token").value }) });
+    $("#token").value = "";
+    toast("GitHub connected");
+    await loadStatus();
+    show(state.run ? "results" : "welcome");
+  } catch (ex) {
+    err.textContent = ex.message; err.classList.remove("hidden");
+  } finally { btn.disabled = false; btn.textContent = "Save & check"; }
+});
+
+/* ---------- form ---------- */
+function renderRoles() {
+  $("#roles").innerHTML = state.roles.map(r => `
+    <button type="button" class="role" data-role="${esc(r.key)}" aria-pressed="${r.key === state.role}">
+      <b>${esc(r.label)}</b><span>${r.seed_repos.length} flagship projects</span>
+    </button>`).join("");
+  const role = state.roles.find(r => r.key === state.role);
+  $("#role-hint").innerHTML = role
+    ? `Seeds: ${role.seed_repos.slice(0, 4).map(esc).join(", ")}${role.seed_repos.length > 4 ? ` +${role.seed_repos.length - 4} more` : ""}`
+    : "Pick the kind of engineer you're hiring.";
+  renderExcludes();
+}
+
+$("#roles").addEventListener("click", e => {
+  const btn = e.target.closest("[data-role]");
+  if (!btn) return;
+  state.role = btn.dataset.role;
+  state.exclude.clear();
+  store.set("role", state.role);
+  renderRoles();
+  updateRunButton();
+});
+
+function locParts() { return $("#f-location").value.split(",").map(s => s.trim()).filter(Boolean); }
+function renderLocChips() {
+  const current = new Set(locParts().map(s => s.toLowerCase()));
+  $("#loc-chips").innerHTML = LOCATIONS.map(([key, label]) =>
+    `<button type="button" class="chip" data-loc="${key}" aria-pressed="${current.has(key)}">${label}</button>`).join("");
+}
+$("#loc-chips").addEventListener("click", e => {
+  const btn = e.target.closest("[data-loc]");
+  if (!btn) return;
+  const key = btn.dataset.loc;
+  let parts = locParts();
+  parts = parts.some(p => p.toLowerCase() === key) ? parts.filter(p => p.toLowerCase() !== key) : [...parts, key];
+  $("#f-location").value = parts.join(", ");
+  renderLocChips(); saveForm();
+});
+$("#f-location").addEventListener("input", renderLocChips);
+
+const range = $("#f-limit-range"), limit = $("#f-limit");
+range.addEventListener("input", () => { limit.value = range.value; saveForm(); });
+limit.addEventListener("input", () => { range.value = Math.min(200, Math.max(10, +limit.value || 10)); });
+
+function renderExcludes() {
+  const runs = state.runs.filter(r => r.role === state.role).slice(0, 10);
+  $("#exclude-wrap").classList.toggle("hidden", !runs.length);
+  $("#exclude-chips").innerHTML = runs.map(r =>
+    `<button type="button" class="chip" data-exclude="${esc(r.name)}" aria-pressed="${state.exclude.has(r.name)}"
+       title="${esc(r.count)} people">${esc(r.location || "Anywhere")} · ${esc(timeAgo(r.generated_at))}</button>`).join("");
+}
+$("#exclude-chips").addEventListener("click", e => {
+  const btn = e.target.closest("[data-exclude]");
+  if (!btn) return;
+  const name = btn.dataset.exclude;
+  state.exclude.has(name) ? state.exclude.delete(name) : state.exclude.add(name);
+  renderExcludes();
+});
+
+function formData() {
+  const data = { role: state.role, exclude_runs: [...state.exclude] };
+  for (const el of $$("[data-field]")) data[el.dataset.field] = el.type === "checkbox" ? el.checked : el.value.trim();
+  return data;
+}
+function saveForm() {
+  const data = formData();
+  delete data.role; delete data.exclude_runs;
+  store.set("form", data);
+}
+function restoreForm() {
+  const saved = store.get("form", {});
+  for (const el of $$("[data-field]")) {
+    const v = saved[el.dataset.field];
+    if (v === undefined) continue;
+    if (el.type === "checkbox") el.checked = !!v; else el.value = v;
+  }
+  range.value = Math.min(200, Math.max(10, +limit.value || 50));
+  renderLocChips();
+}
+$("#form").addEventListener("input", saveForm);
+$("#form").addEventListener("change", saveForm);
+
+function updateRunButton() {
+  const btn = $("#run-btn"), running = state.job && state.job.state === "running";
+  btn.disabled = !!running || !state.role || !(state.status && state.status.ok);
+  btn.querySelector("span").textContent = running ? "Search running…" : !state.role ? "Pick a role first" : "Find candidates";
+  $("#job-banner").classList.toggle("hidden", !running || state.view === "running");
+}
+
+$("#form").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!state.role) return toast("Pick a role first", true);
+  const body = formData();
+  try {
+    const job = await api("/api/search", { method: "POST", body: JSON.stringify(body) });
+    attachJob(job, body);
+  } catch (err) { toast(err.message, true); }
+});
+
+/* ---------- running ---------- */
+function attachJob(job, form) {
+  const role = state.roles.find(r => r.key === (form && form.role)) || null;
+  const locs = form ? (form.location || "").split(",").filter(s => s.trim()).length : 0;
+  const extra = form ? (form.repos || "").split(",").filter(s => s.trim()).length : 0;
+  const langs = form && form.languages ? form.languages.split(",").filter(s => s.trim()).length : role ? role.search_languages.length : 2;
+  state.job = { ...job, lines: [...(job.lines || [])], form,
+    expected: role ? role.seed_repos.length + extra + langs * Math.max(1, locs) + role.topic_search.length : 0 };
+  store.set("job-form", form || null);
+  $("#run-title").textContent = role ? `Searching for ${role.label}s` : "Searching…";
+  $("#run-sub").textContent = form ? (form.location ? `in ${form.location}` : "anywhere") : "";
+  $("#log-pre").textContent = "";
+  $("#run-notice").classList.add("hidden");
+  $("#cancel-btn").classList.remove("hidden");
+  show("running");
+  renderProgress();
+  poll();
+}
+
+function parseProgress(lines, expected) {
+  const p = { phase: "discover", steps: 0, found: null, enriched: [0, 0], filtered: "", retrying: false, emails: false };
+  for (const line of lines) {
+    let m;
+    if (p.phase === "discover" && (/: \d+ (contributors|users|project owners)$/.test(line) || /^\s+! /.test(line))) p.steps++;
+    if ((m = line.match(/^(\d+) unique people found/))) { p.phase = "enrich"; p.found = +m[1]; }
+    if ((m = line.match(/enriched (\d+)\/(\d+)/))) p.enriched = [+m[1], +m[2]];
+    if (line.startsWith("Filtered out")) { p.phase = "score"; p.filtered = line; }
+    if (line.startsWith("Looking up commit emails")) { p.phase = "emails"; p.emails = true; }
+    if (line.startsWith("Report:")) p.phase = "done";
+  }
+  const last = lines[lines.length - 1] || "";
+  p.retrying = /waiting \d+s before retrying/.test(last) ? last.trim() : "";
+  const discover = expected ? Math.min(1, p.steps / expected) : 0.5;
+  const enrich = p.enriched[1] ? p.enriched[0] / p.enriched[1] : 0;
+  p.pct = { discover: 3 + 32 * discover, enrich: 35 + 55 * enrich, score: 92, emails: 95, done: 100 }[p.phase];
+  return p;
+}
+
+function renderProgress() {
+  const job = state.job;
+  if (!job) return;
+  const p = parseProgress(job.lines, job.expected);
+  const phases = [["discover", "Discover"], ["enrich", "Check profiles"], ["score", "Score"]];
+  if (job.form && job.form.emails) phases.push(["emails", "Find emails"]);
+  phases.push(["done", "Done"]);
+  const order = phases.map(x => x[0]), at = order.indexOf(p.phase === "emails" && !order.includes("emails") ? "score" : p.phase);
+  $("#phases").innerHTML = phases.map(([key, label], i) =>
+    `<div class="phase ${i < at || p.phase === "done" ? "done" : i === at ? "active" : ""}"><i>${i < at || p.phase === "done" ? "✓" : i + 1}</i>${label}</div>`).join("");
+  $("#bar").style.width = (job.state === "done" ? 100 : p.pct) + "%";
+  const text = {
+    discover: job.expected ? `Discovering people · ${Math.min(p.steps, job.expected)} of ${job.expected} sources checked` : "Discovering people…",
+    enrich: p.enriched[1] ? `Checking profiles · ${num(p.enriched[0])} of ${num(p.enriched[1])}` + (p.found ? ` (from ${num(p.found)} found)` : "") : "Checking profiles…",
+    score: "Scoring and filtering…", emails: "Looking up emails from public commits…", done: "Finishing up…",
+  }[p.phase];
+  $("#progress-text").textContent = text;
+  $("#elapsed").textContent = job.started ? `${Math.floor((Date.now() / 1000 - job.started) / 60)}m ${Math.floor(Date.now() / 1000 - job.started) % 60}s` : "";
+  const notice = $("#run-notice");
+  if (job.state === "failed" || job.state === "cancelled") {
+    const errLine = [...job.lines].reverse().find(l => /error|failed|rejected|problems|could not|expects|unknown/i.test(l));
+    notice.className = "notice bad";
+    notice.textContent = job.state === "cancelled" ? "Search cancelled. Anything fetched so far is cached, so a re-run is quick."
+      : "The search failed" + (errLine ? `: ${errLine.trim()}` : ". Open the log below for details.");
+    $("#run-title").textContent = job.state === "cancelled" ? "Search cancelled" : "Search failed";
+    $("#cancel-btn").classList.add("hidden");
+    $("#log").open = job.state === "failed";
+  } else if (p.retrying) {
+    notice.className = "notice";
+    notice.textContent = "GitHub is busy or rate-limiting — the tool is waiting and will retry automatically.";
+  } else notice.classList.add("hidden");
+  const pre = $("#log-pre"), stick = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 20;
+  pre.textContent = job.lines.join("\n");
+  if (stick) pre.scrollTop = pre.scrollHeight;
+}
+
+async function poll() {
+  const job = state.job;
+  if (!job || job.state !== "running") return;
+  try {
+    const d = await api(`/api/jobs/${job.id}?since=${job.lines.length}`);
+    if (state.job !== job) return;
+    job.lines.push(...d.lines);
+    job.state = d.state; job.run = d.run;
+    if (state.view === "running") renderProgress();
+    if (d.state === "running") return void setTimeout(poll, 800);
+    updateRunButton();
+    if (d.state === "done" && d.run) {
+      await loadRuns();
+      toast("Search finished");
+      openRun(d.run);
+      loadStatus();
+    } else renderProgress();
+  } catch (err) {
+    if (/isn't running/.test(err.message)) { job.state = "failed"; job.lines.push("The server restarted, so this search stopped."); renderProgress(); updateRunButton(); }
+    else setTimeout(poll, 2500);
+  }
+}
+
+$("#cancel-btn").addEventListener("click", async () => {
+  if (!state.job) return;
+  try { await api(`/api/jobs/${state.job.id}/cancel`, { method: "POST" }); } catch (err) { toast(err.message, true); }
+});
+$("#job-banner").addEventListener("click", () => { show("running"); renderProgress(); });
+
+/* ---------- runs ---------- */
+async function loadRuns() {
+  try { state.runs = await api("/api/runs"); } catch (err) { state.runs = []; toast(err.message, true); }
+  renderRuns(); renderExcludes();
+  $("#welcome-runs").classList.toggle("hidden", !state.runs.length);
+  $("#recent").innerHTML = state.runs.slice(0, 6).map(r => `
+    <button type="button" class="panel" data-run="${esc(r.name)}"><b>${esc(r.role_label)}${r.location ? ` · ${esc(r.location)}` : ""}</b>
+      <span>${esc(timeAgo(r.generated_at))} · ${num(r.count)} people · ${num(r.tier_a)} Tier A</span></button>`).join("");
+}
+
+function renderRuns() {
+  const list = $("#runs");
+  if (!state.runs.length) { list.innerHTML = `<li class="empty-note">Your searches will show up here.</li>`; return; }
+  list.innerHTML = state.runs.slice(0, 30).map(r => `
+    <li><button type="button" class="run-item" data-run="${esc(r.name)}" aria-current="${state.run && state.run.name === r.name}">
+      <b>${esc(r.role_label)}${r.location ? ` · ${esc(r.location)}` : ""}</b>
+      <span>${esc(timeAgo(r.generated_at))} · ${num(r.count)} people · ${num(r.tier_a)} Tier A · ${num(r.with_email)} emails</span>
+    </button></li>`).join("");
+}
+$("#runs").addEventListener("click", e => { const b = e.target.closest("[data-run]"); if (b) openRun(b.dataset.run); });
+$("#recent").addEventListener("click", e => { const b = e.target.closest("[data-run]"); if (b) openRun(b.dataset.run); });
+
+async function openRun(name) {
+  try {
+    const data = await api(`/api/runs/${encodeURIComponent(name)}`);
+    state.run = { name, meta: data.meta || {}, people: data.candidates || [] };
+  } catch (err) { return toast(err.message, true); }
+  if (!state.role && state.roles.some(r => r.key === state.run.meta.role)) {
+    state.role = state.run.meta.role;
+    renderRoles();
+  }
+  state.tier = "all"; state.q = ""; state.onlyEmail = false;
+  $("#q").value = ""; $("#only-email").checked = false;
+  store.set("last-run", name);
+  try { history.replaceState(null, "", "#run=" + encodeURIComponent(name)); } catch { /* sandboxed */ }
+  renderRuns();
+  renderResults();
+  show("results");
+}
+
+/* ---------- results ---------- */
+const split = (s, sep) => String(s || "").split(sep).map(x => x.trim()).filter(Boolean);
+const tierOf = c => ["A", "B", "C"].includes(c.tier) ? c.tier : "C";
+
+function renderResults() {
+  const { meta, people, name } = state.run;
+  const when = Date.parse(meta.generated_at);
+  $("#res-title").textContent = (meta.role_label || "Candidates") + ((meta.query || {}).location ? ` · ${meta.query.location}` : "");
+  $("#res-sub").textContent = [when ? new Date(when).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "",
+    meta.discovered ? `${num(meta.discovered)} people discovered, ${num(meta.enriched)} profiles checked` : ""].filter(Boolean).join(" · ");
+  $("#dl-csv").href = `/runs/${encodeURIComponent(name)}/candidates.csv`;
+  $("#open-report").href = `/runs/${encodeURIComponent(name)}/report.html`;
+  const count = t => people.filter(c => tierOf(c) === t).length;
+  const emails = people.filter(c => c.email).length;
+  $("#stats").innerHTML = `
+    <div class="panel stat"><b>${num(people.length)}</b><span>candidates</span></div>
+    <div class="panel stat a"><b>${num(count("A"))}</b><span>Tier A (65+)</span></div>
+    <div class="panel stat b"><b>${num(count("B"))}</b><span>Tier B (45–64)</span></div>
+    <div class="panel stat"><b>${num(emails)}</b><span>with email</span></div>`;
+  $("#tiers").innerHTML = [["all", "All", people.length], ["A", "A", count("A")], ["B", "B", count("B")], ["C", "C", count("C")]]
+    .map(([key, label, n]) => `<button type="button" data-tier="${key}" aria-pressed="${state.tier === key}">${label}<small>${n}</small></button>`).join("");
+  renderCards();
+}
+
+function filtered() {
+  const q = state.q.toLowerCase();
+  const sorters = {
+    score: (a, b) => b.score - a.score,
+    followers: (a, b) => (b.followers || 0) - (a.followers || 0),
+    stars: (a, b) => (b.owned_stars || 0) - (a.owned_stars || 0),
+    recent: (a, b) => (b.contributions_90d || 0) - (a.contributions_90d || 0),
+  };
+  return state.run.people
+    .filter(c => state.tier === "all" || tierOf(c) === state.tier)
+    .filter(c => !state.onlyEmail || c.email)
+    .filter(c => !q || [c.login, c.name, c.company, c.location, c.reasons, c.top_languages, c.seed_contributions]
+      .join(" ").toLowerCase().includes(q))
+    .sort(sorters[state.sort] || sorters.score);
+}
+
+function ring(score, tier) {
+  const r = 23, len = 2 * Math.PI * r, value = Math.max(0, Math.min(100, Number(score) || 0));
+  return `<div class="ring t-${tier}" title="Score ${value} · Tier ${tier}"><svg viewBox="0 0 56 56">
+    <circle class="track" cx="28" cy="28" r="${r}"/><circle class="val" cx="28" cy="28" r="${r}"
+    stroke-dasharray="${len.toFixed(1)}" stroke-dashoffset="${(len * (1 - value / 100)).toFixed(1)}"/></svg><b>${value}</b></div>`;
+}
+
+function cardHtml(c) {
+  const tier = tierOf(c), reasons = split(c.reasons, " | "), flags = split(c.flags, ";");
+  const idx = state.run.people.indexOf(c);
+  const links = [`<a href="${esc(safeUrl(c.profile_url || "github.com/" + c.login))}" target="_blank" rel="noopener">GitHub</a>`];
+  if (c.email) links.push(`<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>${c.email_source === "commit" ? ` <span class="muted">(from commits)</span>` : ""}`);
+  if (c.website) links.push(`<a href="${esc(safeUrl(c.website))}" target="_blank" rel="noopener">Website</a>`);
+  if (c.twitter) links.push(`<a href="${esc(safeUrl(c.twitter))}" target="_blank" rel="noopener">X / Twitter</a>`);
+  const tags = [...(c.hireable === "yes" ? [`<span class="flag good">open to work</span>`] : []), ...flags.map(f => `<span class="flag">${esc(f)}</span>`)];
+  const bars = BREAKDOWN.filter(k => c.breakdown && k in c.breakdown).map(k => {
+    const v = Math.max(0, Math.min(100, Number(c.breakdown[k]) || 0));
+    return `<div class="bar"><span>${k}</span><i style="--w:${v}%"></i><b>${v}</b></div>`;
+  }).join("");
+  const meta = [c.company, c.location || "location unknown"].filter(Boolean).map(esc).join(" · ");
+  return `<article class="panel card">
+    <div class="card-top">
+      <img class="avatar" src="https://github.com/${encodeURIComponent(c.login)}.png?size=104" alt="" loading="lazy" width="52" height="52">
+      <div class="who">
+        <div class="rank">#${esc(c.rank)}</div>
+        <h3><a href="${esc(safeUrl(c.profile_url || "github.com/" + c.login))}" target="_blank" rel="noopener">${esc(c.name || c.login)}</a><span class="handle">@${esc(c.login)}</span><span class="tier-tag t-${tier}">Tier ${tier}</span></h3>
+        <div class="meta">${meta}</div>
+      </div>
+      ${ring(c.score, tier)}
+    </div>
+    <div class="card-body">
+      <div>
+        <ul class="reasons">${reasons.slice(0, 3).map(r => `<li>${esc(r)}</li>`).join("")}</ul>
+        ${reasons.length > 3 ? `<details class="more"><summary>+ ${reasons.length - 3} more reasons</summary><ul class="reasons">${reasons.slice(3).map(r => `<li>${esc(r)}</li>`).join("")}</ul></details>` : ""}
+      </div>
+      <div class="bars">${bars}</div>
+    </div>
+    <div class="links">${links.join("")}${tags.join("")}</div>
+    ${c.outreach_hook ? `<div class="opener"><span>${esc(c.outreach_hook)}</span><button class="btn small" type="button" data-copy="${idx}">Copy opener</button></div>` : ""}
+  </article>`;
+}
+
+function renderCards() {
+  const list = filtered();
+  $("#count-line").textContent = list.length === state.run.people.length ? `${num(list.length)} people` : `Showing ${num(list.length)} of ${num(state.run.people.length)}`;
+  $("#cards").innerHTML = list.length ? list.map(cardHtml).join("")
+    : `<div class="panel empty">${state.run.people.length ? "Nobody matches these filters." : "This search found no candidates. Try a wider location, “Keep people with no location”, or a lower min score."}</div>`;
+  for (const b of $$("#tiers button")) b.setAttribute("aria-pressed", b.dataset.tier === state.tier);
+}
+
+$("#cards").addEventListener("click", async e => {
+  const btn = e.target.closest("[data-copy]");
+  if (!btn) return;
+  const c = state.run.people[+btn.dataset.copy];
+  if (c && await copy(c.outreach_hook)) { btn.textContent = "Copied ✓"; setTimeout(() => btn.textContent = "Copy opener", 1500); }
+  else toast("Couldn't copy", true);
+});
+$("#cards").addEventListener("error", e => { if (e.target.classList.contains("avatar")) e.target.style.visibility = "hidden"; }, true);
+$("#tiers").addEventListener("click", e => { const b = e.target.closest("[data-tier]"); if (b) { state.tier = b.dataset.tier; renderCards(); } });
+$("#q").addEventListener("input", e => { state.q = e.target.value.trim(); renderCards(); });
+$("#only-email").addEventListener("change", e => { state.onlyEmail = e.target.checked; renderCards(); });
+$("#sort").addEventListener("change", e => { state.sort = e.target.value; store.set("sort", state.sort); renderCards(); });
+$("#copy-emails").addEventListener("click", async () => {
+  const emails = [...new Set(filtered().map(c => c.email).filter(Boolean))];
+  if (!emails.length) return toast("No emails in the current view", true);
+  if (await copy(emails.join(", "))) toast(`Copied ${emails.length} email${emails.length === 1 ? "" : "s"}`);
+});
+
+/* ---------- start ---------- */
+(async function init() {
+  state.sort = store.get("sort", "score");
+  $("#sort").value = state.sort;
+  restoreForm();
+  try { state.roles = await api("/api/roles"); }
+  catch (err) { toast(err.message, true); state.roles = []; }
+  if (!state.roles.some(r => r.key === state.role)) state.role = null;
+  renderRoles();
+  await loadRuns();
+  let resumed = false;
+  try {
+    const { job } = await api("/api/jobs/current");
+    if (job) { attachJob(job, store.get("job-form", null)); resumed = true; }
+  } catch { /* no running job */ }
+  if (!resumed) {
+    const fromHash = decodeURIComponent((location.hash.match(/^#run=(.+)$/) || [])[1] || "");
+    const last = fromHash || store.get("last-run", null);
+    if (last && state.runs.some(r => r.name === last)) await openRun(last);
+  }
+  loadStatus();
+})();
+</script>
+</body>
+</html>

@@ -10,7 +10,18 @@ filterable HTML report with an outreach opener for each person. Pure Python 3.10
 2. `cp .env.example .env` and paste the token after `GITHUB_TOKEN=`.
 3. `python3 source.py check` should print your username and quota.
 
-## Use
+## Web app
+
+```bash
+python3 source.py ui
+```
+
+Opens the app in your browser (at `http://127.0.0.1:8765`, only reachable from this computer). Pick a role, add a
+location, and press **Find candidates**: you'll see live progress, then a ranked shortlist you can filter by tier,
+search, sort, copy openers and emails from, and download as CSV. Past runs stay in the sidebar, and you can paste
+your GitHub token straight into the app the first time. `--port` picks another port; `--no-browser` skips opening a tab.
+
+## Command line
 
 ```bash
 python3 source.py roles                                   # list presets

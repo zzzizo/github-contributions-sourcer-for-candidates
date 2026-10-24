@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
-from sourcer import cli, discover, report
+from sourcer import cli, discover, enrich, report
 from sourcer.cli import load_roles, read_excludes, role_problems
 from sourcer.enrich import JUNK_EMAIL, normalize
 from sourcer.github import AuthError, GitHub, GitHubError, _seconds_until
@@ -198,6 +198,22 @@ class RobustnessTests(unittest.TestCase):
         self.assertEqual((profile["repos"], profile["followers"], profile["contrib_year"]), ([], 0, 0))
         result = score(profile, load_roles()["ai"], {}, NOW)
         self.assertTrue(result["hook"].startswith("Hi ghost-ish"))
+
+    def test_failed_batch_is_split_in_halves(self):
+        class Flaky:
+            calls = 0
+
+            def graphql(self, query, variables=None):
+                Flaky.calls += 1
+                logins = re.findall(r'u(\d+): user\(login: "([^"]+)"\)', query)
+                if len(logins) > 2:
+                    raise GitHubError("502")
+                return {f"u{i}": raw_user(login=login, url=f"https://github.com/{login}") for i, login in logins}
+
+        names = [f"dev{i}" for i in range(8)]
+        profiles = enrich.enrich(Flaky(), names, batch_size=8, workers=1, now=NOW)
+        self.assertEqual([p["login"] for p in profiles], names)
+        self.assertEqual(Flaky.calls, 7)  # 8 -> 4+4 -> 2+2+2+2, instead of 1 + 8 single calls
 
     def test_retry_after_formats(self):
         self.assertEqual(_seconds_until("30"), 30)

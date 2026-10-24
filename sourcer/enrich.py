@@ -48,11 +48,12 @@ def _fetch(gh, logins, since):
         if len(logins) == 1:
             log(f"  ! could not enrich {logins[0]}: {err}")
             return [None]
-        # A heavy batch can time out on GitHub's side; retry the users one by one.
-        return [user for login in logins for user in _fetch(gh, [login], since)]
+        # A heavy batch can time out on GitHub's side; retry it in halves, down to one user at a time.
+        half = len(logins) // 2
+        return _fetch(gh, logins[:half], since) + _fetch(gh, logins[half:], since)
 
 
-def enrich(gh, logins, batch_size=10, workers=4, now=None):
+def enrich(gh, logins, batch_size=5, workers=4, now=None):
     now = now or datetime.now(timezone.utc)
     # Day precision keeps the query text (and so the cache key) stable within a day.
     since = (now - timedelta(days=90)).strftime("%Y-%m-%dT00:00:00Z")

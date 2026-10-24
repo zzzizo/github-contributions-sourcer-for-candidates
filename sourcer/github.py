@@ -144,7 +144,7 @@ class GitHub:
 
     # -- transport ---------------------------------------------------------
 
-    def _request(self, method, url, body=None):
+    def _request(self, method, url, body=None, server_retries=4):
         headers = {
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
@@ -169,7 +169,7 @@ class GitHub:
                 # 404 = gone/renamed, 409 = empty repository, 451 = blocked: treat as "no data".
                 if err.code in (404, 409, 451):
                     return None
-                wait = self._backoff(err, text, attempt)
+                wait = self._backoff(err, text, attempt, server_retries)
                 if wait is None:
                     raise GitHubError(f"{method} {url} -> HTTP {err.code}: {text[:300]}") from None
                 log(f"  GitHub returned {err.code}; waiting {wait}s before retrying…")
@@ -182,7 +182,7 @@ class GitHub:
         raise GitHubError(f"{method} {url} failed after retries")
 
     @staticmethod
-    def _backoff(err, text, attempt):
+    def _backoff(err, text, attempt, server_retries=4):
         headers = err.headers
         if err.code in (403, 429):
             if headers.get("Retry-After"):
@@ -193,7 +193,7 @@ class GitHub:
             if "rate limit" in text.lower() and attempt < 3:
                 return 60
             return None
-        if err.code >= 500 and attempt < 4:
+        if err.code >= 500 and attempt < server_retries:
             return 2 ** (attempt + 1)
         return None
 
@@ -226,7 +226,9 @@ class GitHub:
         if cached is not None:
             return cached
         for attempt in range(3):
-            result = self._request("POST", API + "/graphql", body) or {}
+            # A 502/504 on GraphQL usually means the query is too heavy for GitHub's 10s limit, and the same query
+            # will fail again; retry once for a blip, then let the caller split it into smaller ones.
+            result = self._request("POST", API + "/graphql", body, server_retries=1) or {}
             errors = [e for e in result.get("errors") or [] if e.get("type") != "NOT_FOUND"]
             # GraphQL reports its rate limit as HTTP 200 with a RATE_LIMITED error.
             if attempt < 2 and any(e.get("type") == "RATE_LIMITED" for e in errors):
