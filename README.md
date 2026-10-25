@@ -1,25 +1,70 @@
 # GitHub Sourcer
 
-Finds senior engineers on GitHub for a role, scores them 0–100 with reasons you can read, and writes a CSV plus a
-filterable HTML report with an outreach opener for each person. Pure Python 3.10+, nothing to install.
+Finds senior engineers on GitHub for a role, scores them 0–100 with reasons you can read, and gives you a ranked
+shortlist with contact links (email, website, X, LinkedIn) and an outreach opener for each person. Use it from a
+web app in your browser or from the command line. Pure Python 3.10+, nothing to install.
 
-## Setup (once)
+## How to run it
 
-1. Create a token at <https://github.com/settings/personal-access-tokens/new>: fine-grained,
-   "Public repositories (read-only)", no other permissions.
-2. `cp .env.example .env` and paste the token after `GITHUB_TOKEN=`.
-3. `python3 source.py check` should print your username and quota.
+**1. Get the code**
 
-## Web app
+```bash
+git clone https://github.com/zzzizo/github-contributions-sourcer-for-candidates.git
+cd github-contributions-sourcer-for-candidates
+```
+
+**2. Check you have Python 3.10 or newer**
+
+```bash
+python3 --version
+```
+
+If it's missing or older, install it from <https://www.python.org/downloads/>. On Windows, type `python` instead of
+`python3` in every command below.
+
+**3. Create a GitHub token** (free, read-only)
+
+Open <https://github.com/settings/personal-access-tokens/new>, give it a name, choose
+**Public repositories (read-only)** and no other permissions, then click **Generate token** and copy it.
+
+**4. Start the app**
 
 ```bash
 python3 source.py ui
 ```
 
-Opens the app in your browser (at `http://127.0.0.1:8765`, only reachable from this computer). Pick a role, add a
-location, and press **Find candidates**: you'll see live progress, then a ranked shortlist you can filter by tier,
-search, sort, copy openers and emails from, and download as CSV. Past runs stay in the sidebar, and you can paste
-your GitHub token straight into the app the first time. `--port` picks another port; `--no-browser` skips opening a tab.
+Your browser opens the app at `http://127.0.0.1:8765`. The first time, it asks for your token: paste it and click
+**Save & check**. It's saved in a `.env` file on your computer only, never uploaded.
+
+**5. Find candidates**
+
+Pick a role, optionally add a location (or click a chip like *SF Bay Area* or *Europe*), and press
+**Find candidates**. A search takes about 1–5 minutes. You'll see live progress, then a ranked shortlist you can:
+
+- filter by tier (A/B/C), text or "has email", and sort by score, followers, stars or recent activity
+- open each person's GitHub, website, X and LinkedIn
+- copy a personalised opener, or every email in the current view at once
+- download as CSV for your ATS or Google Sheets, or open the full HTML report
+
+Past runs stay in the sidebar, and "Skip people from earlier runs" leaves out anyone you've already found.
+Press `Ctrl+C` in the terminal to stop the app. `--port 9000` picks another port; `--no-browser` skips opening a tab.
+
+**Prefer setting the token by hand?** Copy `.env.example` to `.env` (`cp .env.example .env`, or `copy` on Windows),
+paste the token after `GITHUB_TOKEN=`, and run `python3 source.py check`: it should print your username and quota.
+
+**Trouble?**
+
+- *"GitHub rejected the token"*: it expired or was copied incompletely. Make a new one (step 3).
+- *Certificate errors on macOS*: run `Install Certificates.command` from your Python folder in Applications.
+- *A search seems slow*: GitHub sometimes times out on big queries; the tool waits and retries on its own, and
+  everything already fetched is cached, so a re-run is quick.
+
+## LinkedIn
+
+If someone added their LinkedIn to their GitHub profile (as a profile link, website or in their bio), their card
+gets a **LinkedIn** button to the exact profile. Otherwise, if they have a name on GitHub, you get a
+**Find on LinkedIn** button that runs a LinkedIn people search by name and company. That one is a guess, so check
+it's the right person. The CSV has both as `linkedin` and `linkedin_search`. The tool never queries LinkedIn itself.
 
 ## Command line
 
