@@ -28,6 +28,27 @@
     "weights": {"impact": 35, "seed": 10, "notable": 10, "activity": 20, "experience": 10, "fit": 15},
     "min_followers": 50
   },
+  "founding-fintech": {
+    "label": "Founding Engineer — iOS, Backend & ML (consumer fintech)",
+    "languages": ["Swift", "Objective-C", "Python", "Go", "Rust", "TypeScript", "Kotlin", "C++", "Java", "Scala"],
+    "search_languages": ["Swift", "Go", "Python"],
+    "topics": ["ios", "swift", "swiftui", "uikit", "mobile", "iphone", "apple-pay", "payments", "fintech", "wallet",
+               "stripe", "banking", "open-banking", "plaid", "credit-card", "rewards", "recommender-system",
+               "recommendation-system", "recsys", "machine-learning", "ranking", "personalization",
+               "distributed-systems", "backend", "api"],
+    "topic_search": ["swiftui", "fintech", "recommender-system"],
+    "keywords": ["ios", "swift", "swiftui", "mobile", "iphone", "payments", "fintech", "wallet", "backend",
+                 "infrastructure", "ml", "machine learning", "recommendation", "recommender", "recsys", "ranking",
+                 "founding", "founder", "co-founder", "cto", "yc", "y combinator", "stripe", "apple", "google",
+                 "robinhood", "plaid", "ramp", "brex", "cash app", "square", "coinbase", "openai", "xai",
+                 "anthropic", "deepmind", "stanford", "mit", "harvard", "berkeley", "cmu"],
+    "seed_repos": ["pointfreeco/swift-composable-architecture", "Alamofire/Alamofire", "onevcat/Kingfisher",
+                   "airbnb/lottie-ios", "stripe/stripe-ios", "firebase/firebase-ios-sdk", "RevenueCat/purchases-ios",
+                   "vapor/vapor", "apple/swift-nio", "tigerbeetle/tigerbeetle", "meta-pytorch/torchrec",
+                   "tensorflow/recommenders"],
+    "weights": {"impact": 30, "seed": 20, "notable": 10, "activity": 15, "experience": 5, "fit": 20},
+    "min_followers": 30
+  },
   "backend": {
     "label": "Senior Backend Engineer",
     "languages": ["Go", "Rust", "Java", "Kotlin", "C++", "Scala", "Python", "Elixir", "C", "Zig"],
