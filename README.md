@@ -1,8 +1,9 @@
 # GitHub Sourcer
 
 Finds senior engineers on GitHub for a role, scores them 0–100 with reasons you can read, and gives you a ranked
-shortlist with contact links (email, website, X, LinkedIn) and an outreach opener for each person. Use it from a
-web app in your browser or from the command line. Pure Python 3.10+, nothing to install.
+shortlist with contact links (email, website, X, LinkedIn) and an outreach opener for each person. Pick a preset
+role or paste a job description. Use it from a web app in your browser or from the command line. Pure Python 3.10+,
+nothing to install, no AI service or API costs.
 
 ## How to run it
 
@@ -47,6 +48,8 @@ Pick a role, optionally add a location (or click a chip like *SF Bay Area* or *E
 - download as CSV for your ATS or Google Sheets, or open the full HTML report
 
 Past runs stay in the sidebar, and "Skip people from earlier runs" leaves out anyone you've already found.
+
+**Hiring for something the presets don't cover?** Switch the sidebar to **From a JD** (see below).
 Press `Ctrl+C` in the terminal to stop the app. `--port 9000` picks another port; `--no-browser` skips opening a tab.
 
 **Prefer setting the token by hand?** Copy `.env.example` to `.env` (`cp .env.example .env`, or `copy` on Windows),
@@ -58,6 +61,42 @@ paste the token after `GITHUB_TOKEN=`, and run `python3 source.py check`: it sho
 - *Certificate errors on macOS*: run `Install Certificates.command` from your Python folder in Applications.
 - *A search seems slow*: GitHub sometimes times out on big queries; the tool waits and retries on its own, and
   everything already fetched is cached, so a re-run is quick.
+
+## Searching from a job description
+
+In the app, switch **Role** to **From a JD**, paste the whole job description and press **Analyze JD**. In about
+10 seconds you get a search profile you can check and edit:
+
+- **Requirements**: must-haves and nice-to-haves. Click one to switch it, × to drop it, or type your own.
+- **Where to look**: the flagship projects whose contributors get checked, with stars. Ones marked *search* were
+  found by GitHub search rather than the built-in list, so give them a look. Languages marked ★ are also used to
+  search users (up to 3).
+- **How to rank**: the score weights, preset from the JD's wording (ownership and shipping raise *impact*,
+  open source raises *seed*, research raises *notable*), and the bio keywords.
+
+Then press **Find candidates**. Every candidate's first reason says which JD requirements their GitHub shows
+evidence of, and which must-haves it doesn't. **Save as preset…** adds the profile to `roles.json` so you can reuse
+it. That file is in git, so keep client names out of the title if you push it.
+
+How it reads the JD, with no AI service involved:
+
+- It splits the JD into sections and weights each line by where it sits: requirements and responsibilities count
+  most, nice-to-haves less, the company blurb little. Benefits, "not required" lists and rejection criteria don't
+  count, and neither do lines like "we're not looking for frontend engineers".
+- A built-in dictionary of about 90 skills (iOS, payments, LLM inference, Kafka, smart contracts…) maps the JD's
+  wording to GitHub languages, repo topics, bio keywords and curated flagship repos.
+- It picks up the title (dropping the company name), seniority, years, location (in person, hybrid or remote),
+  visa sponsorship, and companies or schools named as good signals.
+- GitHub then checks the flagship repos (dropping archived or renamed ones), prefers repos written in the JD's
+  languages, and adds popular, active projects for the top skills.
+
+From the command line:
+
+```bash
+python3 source.py jd job.txt                        # show what it understood
+python3 source.py jd job.txt --save jd-ios-founder  # also save it as a preset
+python3 source.py search --jd job.txt -l sf         # search straight from the JD
+```
 
 ## LinkedIn
 
@@ -88,6 +127,11 @@ spreadsheets show it as text instead of running it as a formula; the JSON keeps 
 2. **User search** by language, location and follower count.
 3. **Popular-project owners** in role topics, which is useful for founding engineers.
 
+Then it checks people in two steps, because GitHub allows only about a minute of query time per minute and a
+person's full history is the expensive part. First it reads every lead's basic profile, which is cheap, and drops
+people outside the location. Then it checks the repos and last year of commits only for the most promising
+(`--max-deep`, by default twice `--limit` and at least 100).
+
 ## How the score works
 
 | Part | Measures |
@@ -97,7 +141,7 @@ spreadsheets show it as text instead of running it as a formula; the JSON keeps 
 | notable | other 1k+ star projects they contributed to in the last year |
 | activity | contributions in the last year and last 90 days |
 | experience | account age and followers |
-| fit | languages, repo topics, bio keywords, seniority words (staff, founder, PhD…) |
+| fit | languages, repo topics, bio keywords, seniority words (staff, founder, PhD…), and the JD's requirements |
 
 Tier A ≥ 65, B ≥ 45. Weights can be changed per role in `roles.json` (see `founding`).
 

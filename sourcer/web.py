@@ -17,7 +17,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
-from .cli import load_roles
+from . import jd
+from .cli import load_roles, role_problems, save_role
 from .github import ROOT, TOKEN_VARS, AuthError, GitHub, GitHubError, load_token
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -25,12 +26,12 @@ RESULTS = ROOT / "results"
 RUN_FILES = {"report.html": "text/html; charset=utf-8", "candidates.csv": "text/csv; charset=utf-8",
              "candidates.json": "application/json; charset=utf-8"}
 TEXT_OPTIONS = {"location": "--location", "repos": "--repos", "languages": "--languages"}
-INT_OPTIONS = {"limit": "--limit", "min_score": "--min-score", "max_enrich": "--max-enrich",
+INT_OPTIONS = {"limit": "--limit", "min_score": "--min-score", "max_enrich": "--max-enrich", "max_deep": "--max-deep",
                "min_followers": "--min-followers", "min_stars": "--min-stars", "seed_pages": "--seed-pages"}
 FLAG_OPTIONS = {"emails": "--emails", "keep_unknown_location": "--keep-unknown-location",
                 "include_inactive": "--include-inactive", "refresh": "--refresh"}
 TOKEN_SHAPE = re.compile(r"[A-Za-z0-9_]{20,255}")
-MAX_BODY = 64 * 1024
+MAX_BODY = 256 * 1024  # job descriptions can be long
 
 JOBS = {}
 JOBS_LOCK = threading.Lock()
@@ -90,12 +91,31 @@ def list_runs():
 
 # -- searches ----------------------------------------------------------------
 
+def custom_role_file(role):
+    """Write a role built from a job description to a file the search subprocess can read."""
+    if not isinstance(role, dict):
+        raise BadRequest("Analyze a job description first.")
+    problems = role_problems(role)
+    if problems:
+        raise BadRequest("The search profile has problems: " + "; ".join(problems))
+    key = jd.slug(role.get("label")) if not isinstance(role.get("key"), str) else jd.slug(role["key"].removeprefix("jd-"))
+    folder = RESULTS / ".roles"  # a dot name never counts as a run
+    folder.mkdir(parents=True, exist_ok=True)
+    for old in sorted(folder.glob("*.json"), key=lambda f: f.stat().st_mtime)[:-50]:
+        old.unlink(missing_ok=True)
+    path = folder / f"{uuid.uuid4().hex[:12]}.json"
+    path.write_text(json.dumps({**role, "key": key}, ensure_ascii=False), encoding="utf-8")
+    return path
+
+
 def search_argv(form, roles):
     """CLI arguments for a search form. `--flag=value` keeps a value like "-foo" from parsing as an option."""
-    role = form.get("role")
-    if role not in roles:
+    if form.get("custom_role") is not None:
+        argv = ["search", f"--role-file={custom_role_file(form['custom_role'])}", f"--out={RESULTS}"]
+    elif form.get("role") in roles:
+        argv = ["search", form["role"], f"--out={RESULTS}"]
+    else:
         raise BadRequest("Pick a role.")
-    argv = ["search", role, f"--out={RESULTS}"]
     for field, flag in TEXT_OPTIONS.items():
         value = " ".join(str(form.get(field) or "").split())
         if value:
@@ -152,7 +172,7 @@ class Job:
 
 
 def start_job(form):
-    argv = search_argv(form, roles_or_error())
+    argv = search_argv(form, roles_or_error() if form.get("custom_role") is None else {})
     with JOBS_LOCK:
         if any(job.state == "running" for job in JOBS.values()):
             raise BadRequest("A search is already running. Wait for it or cancel it first.")
@@ -167,6 +187,38 @@ def current_job():
     with JOBS_LOCK:
         running = [job for job in JOBS.values() if job.state == "running"]
     return running[0] if running else None
+
+
+def analyze_jd(text):
+    """The search profile for a pasted JD, with seed repos checked and extended on GitHub when a token is set."""
+    if not isinstance(text, str) or not text.strip():
+        raise BadRequest("Paste a job description first.")
+    try:
+        result = jd.analyze(text)
+    except ValueError as err:
+        raise BadRequest(str(err)) from None
+    token = load_token()
+    if token:
+        try:
+            jd.refine_with_github(GitHub(token), result)
+            result["github"] = True
+        except AuthError:
+            result["github"] = False
+            result["analysis"]["notes"].append("GitHub rejected the token, so seed repos weren't checked.")
+    else:
+        result["github"] = False
+        result["analysis"]["notes"].append("Connect GitHub to check the seed repos and find more matching projects.")
+    return result
+
+
+def save_preset(body):
+    try:
+        key = save_role(body.get("key"), body.get("role") if isinstance(body.get("role"), dict) else {})
+    except ValueError as err:
+        raise BadRequest(str(err)) from None
+    except SystemExit as err:  # roles.json itself is broken
+        raise BadRequest(str(err.code)) from None
+    return {"key": key}
 
 
 # -- GitHub token ----------------------------------------------------------
@@ -321,6 +373,10 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "token"]:
             save_token(self._body().get("token"))
             return self._json(github_status())
+        if parts == ["api", "jd"]:
+            return self._json(analyze_jd(self._body().get("text")))
+        if parts == ["api", "roles"]:
+            return self._json(save_preset(self._body()), 201)
         raise NotFound()
 
 

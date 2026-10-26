@@ -8,9 +8,9 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import discover, enrich, report
+from . import discover, enrich, jd, report
 from .github import ROOT, AuthError, GitHub, GitHubError, load_token, log
-from .score import DEFAULT_WEIGHTS, fmt, score
+from .score import DEFAULT_WEIGHTS, SENIORITY, fmt, log_scale, score, word_hits
 
 TOKEN_STEPS = """  1. Create one at https://github.com/settings/personal-access-tokens/new
      (fine-grained, "Public repositories (read-only)", no extra permissions needed).
@@ -21,6 +21,8 @@ TOKEN_HELP = "No GitHub token found.\n" + TOKEN_STEPS
 REQUIRED_ROLE_FIELDS = ("label", "languages", "search_languages", "topics", "seed_repos")
 LIST_ROLE_FIELDS = ("languages", "search_languages", "topics", "topic_search", "keywords", "seed_repos")
 SEED_REPO = re.compile(r"[\w.-]+/[\w.-]+")
+ROLE_KEY = re.compile(r"[a-z0-9][a-z0-9-]{1,39}")
+REQUIREMENT_LISTS = ("languages", "topics", "keywords", "repos")
 
 
 def role_problems(role):
@@ -47,6 +49,12 @@ def role_problems(role):
             problems.append("weights must not all be 0")
     if "min_followers" in role and not (isinstance(role["min_followers"], int) and role["min_followers"] >= 0):
         problems.append("min_followers must be a whole number of 0 or more")
+    requirements = role.get("requirements", [])
+    if not isinstance(requirements, list) or not all(
+            isinstance(r, dict) and isinstance(r.get("name"), str) and r["name"].strip()
+            and all(isinstance(r.get(f, []), list) and all(isinstance(x, str) for x in r.get(f, []))
+                    for f in REQUIREMENT_LISTS) for r in requirements):
+        problems.append("requirements must be a list of {name, must, languages, topics, keywords, repos}")
     return problems
 
 
@@ -65,6 +73,49 @@ def load_roles():
     if problems:
         sys.exit(f"{path} has problems:\n" + "\n".join(problems))
     return roles
+
+
+def load_role_file(path):
+    """A single role saved as JSON (the web app writes one for each job-description search)."""
+    try:
+        role = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as err:
+        sys.exit(f"Could not read role file {path}: {err}")
+    problems = role_problems(role)
+    if problems:
+        sys.exit(f"Role file {path} has problems: " + "; ".join(problems))
+    return role
+
+
+def _role_json(role):
+    """One role in the same layout as the hand-written entries in roles.json: one field per line."""
+    lines = [f"    {json.dumps(k)}: {json.dumps(v, ensure_ascii=False)}" for k, v in role.items()]
+    return "{\n" + ",\n".join(lines) + "\n  }"
+
+
+def save_role(key, role):
+    """Add a role to roles.json, keeping the existing entries exactly as they are written."""
+    key = (key or "").strip().lower()
+    if not ROLE_KEY.fullmatch(key):
+        raise ValueError("Use 2–40 lowercase letters, digits or dashes for the role key, like jd-founding-ios.")
+    role = {k: v for k, v in role.items() if k in (*REQUIRED_ROLE_FIELDS, *LIST_ROLE_FIELDS, "weights",
+                                                   "min_followers", "requirements")}
+    problems = role_problems(role)
+    if problems:
+        raise ValueError("; ".join(problems))
+    roles = load_roles()
+    if key in roles:
+        raise ValueError(f"There's already a role called {key}. Pick another key.")
+    path = ROOT / "roles.json"
+    text = path.read_text(encoding="utf-8").rstrip()
+    if not text.endswith("}"):
+        raise ValueError("roles.json doesn't end with }, so it can't be extended safely.")
+    text = text[:-1].rstrip() + f',\n  {json.dumps(key)}: {_role_json(role)}\n}}\n'
+    json.loads(text)  # never write a file we couldn't read back
+    tmp = path.with_suffix(".json.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+    return key
 
 
 def split(value):
@@ -155,11 +206,55 @@ def cmd_check(args):
         print(f"  {name:<8} {r['remaining']}/{r['limit']} remaining")
 
 
-def cmd_search(args):
+def read_jd(path):
+    try:
+        return sys.stdin.read() if path == "-" else Path(path).read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as err:
+        sys.exit(f"Could not read the job description {path}: {err}")
+
+
+def analyze_jd(gh, path):
+    try:
+        result = jd.analyze(read_jd(path))
+    except ValueError as err:
+        sys.exit(str(err))
+    log("Checking the JD's seed repos and searching GitHub for matching projects…")
+    return jd.refine_with_github(gh, result)
+
+
+def resolve_role(args, gh):
+    """(key, role) from a preset name, a role file, or a job description."""
+    given = [x for x in (args.role, args.role_file, args.jd) if x]
+    if len(given) != 1:
+        sys.exit("Give one of: a role preset (e.g. search ai), --role-file FILE, or --jd FILE.")
+    if args.jd:
+        result = analyze_jd(gh, args.jd)
+        log(f"Read the JD as: {result['role']['label']} · "
+            f"{', '.join(s['name'] for s in result['analysis']['skills'][:6])}")
+        return result["key"], result["role"]
+    if args.role_file:
+        role = load_role_file(args.role_file)
+        return role.get("key") or "jd", role
     roles = load_roles()
     if args.role not in roles:
         sys.exit(f"Unknown role {args.role!r}. Choose from: {', '.join(roles)}")
-    role = dict(roles[args.role])
+    return args.role, roles[args.role]
+
+
+def prerank(user, lead, role):
+    """How promising a lead looks from the cheap profile alone, to pick who gets the expensive check."""
+    seed = sum(min(c, 500) for c in lead.get("seed_contribs", {}).values())
+    followers = (user.get("followers") or {}).get("totalCount") or 0
+    text = " ".join([user.get("bio") or "", user.get("company") or ""]).lower()
+    return (2 * log_scale(seed, 200) + log_scale(followers, 2000) + 0.1 * len(lead.get("sources", ()))
+            + 0.5 * min(1.0, len(word_hits(text, role.get("keywords", []))) / 2)
+            + 0.3 * bool(word_hits(text, SENIORITY)))
+
+
+def cmd_search(args):
+    gh = client(args) if args.jd else None  # only a JD needs GitHub before the arguments are checked
+    key, role = resolve_role(args, gh)
+    role = dict(role)
     if args.repos:
         bad = [r for r in split(args.repos) if not SEED_REPO.fullmatch(r)]
         if bad:
@@ -170,7 +265,7 @@ def cmd_search(args):
     match_terms, search_terms = discover.expand_locations(args.location)
     min_followers = args.min_followers if args.min_followers is not None else role.get("min_followers", 30)
     excluded = read_excludes(args.exclude)
-    gh = client(args)
+    gh = gh or client(args)
     preflight(gh)
     now = datetime.now(timezone.utc)
 
@@ -184,18 +279,30 @@ def cmd_search(args):
         discover.from_topic_repos(gh, pool, role.get("topic_search", []), args.min_stars, args.per_topic)
 
     leads = [e for e in pool.ranked() if e["login"].lower() not in excluded]
+    # Reading a profile is cheap, and a location filter throws most of them away, so read more when there is one.
+    max_read = args.max_enrich or (1200 if match_terms else 400)
     log(f"\n{len(pool)} unique people found, {len(pool) - len(leads)} excluded; "
-        f"enriching the top {min(len(leads), args.max_enrich)}…")
-    leads = leads[:args.max_enrich]
+        f"reading the top {min(len(leads), max_read)} profiles…")
+    leads = leads[:max_read]
     by_login = {e["login"].lower(): e for e in leads}
-    profiles = enrich.enrich(gh, [e["login"] for e in leads], now=now)
+    users = enrich.fetch_profiles(gh, [e["login"] for e in leads])
 
-    kept, dropped = [], {"location": 0, "inactive": 0}
+    dropped = {"location": 0, "inactive": 0}
+    if match_terms:
+        nearby = []
+        for u in users:
+            location = (u.get("location") or "").strip()
+            if discover.location_matches(location, match_terms) or (args.keep_unknown_location and not location):
+                nearby.append(u)
+        dropped["location"] = len(users) - len(nearby)
+        users = nearby
+    max_deep = args.max_deep or max(2 * args.limit, 100)
+    users.sort(key=lambda u: prerank(u, by_login.get(u["login"].lower(), {}), role), reverse=True)
+    log(f"{len(users)} profiles left after the location filter; checking the work of the top {min(len(users), max_deep)}…")
+    profiles = enrich.to_profiles(enrich.add_work(gh, users[:max_deep]), now)
+
+    kept = []
     for p in profiles:
-        if match_terms and not discover.location_matches(p["location"], match_terms):
-            if not (args.keep_unknown_location and not p["location"]):
-                dropped["location"] += 1
-                continue
         result = score(p, role, by_login.get(p["login"].lower(), {}).get("seed_contribs"), now)
         if "inactive 12+ months" in result["flags"] and not args.include_inactive:
             dropped["inactive"] += 1
@@ -213,14 +320,15 @@ def cmd_search(args):
             if p["email"] and "no public contact" in s["flags"]:
                 s["flags"].remove("no public contact")
 
-    slug = "-".join(x for x in [args.role, re.sub(r"[^a-z0-9]+", "-", (args.location or "").lower()).strip("-")] if x)
+    slug = "-".join(x for x in [key, re.sub(r"[^a-z0-9]+", "-", (args.location or "").lower()).strip("-")] if x)
     try:
         out_dir = run_dir(Path(args.out) / f"{slug}-{now.astimezone().strftime('%Y%m%d-%H%M')}")
     except OSError as err:
         sys.exit(f"Could not create the results folder in {args.out}: {err}")
     meta = {
-        "role": args.role, "role_label": role["label"], "generated_at": now.astimezone().isoformat(),
+        "role": key, "role_label": role["label"], "generated_at": now.astimezone().isoformat(),
         "discovered": len(pool), "enriched": len(profiles),
+        "requirements": [{"name": r["name"], "must": bool(r.get("must"))} for r in role.get("requirements") or []],
         "query": {"location": args.location, "extra repos": args.repos, "min score": args.min_score or None},
     }
     report.write_csv(out_dir / "candidates.csv", kept)
@@ -235,6 +343,35 @@ def cmd_search(args):
     print(f"\n{len(kept)} candidates (A: {tiers['A']}, B: {tiers['B']}, C: {tiers['C']}) · "
           f"{sum(1 for p, _ in kept if p['email'])} with email")
     print(f"Report: {out_dir / 'report.html'}\nCSV:    {out_dir / 'candidates.csv'}")
+
+
+def cmd_jd(args):
+    gh = client(args)
+    result = analyze_jd(gh, args.file)
+    role, a = result["role"], result["analysis"]
+    print(f"\n{role['label']}")
+    if a["levels"] or a["years"]:
+        print(f"  level:        {', '.join(a['levels']) or '-'}" + (f" · {a['years']}+ years" if a["years"] else ""))
+    print(f"  location:     {a['location'] or 'anywhere'}")
+    print(f"  must-haves:   {', '.join(s['name'] for s in a['skills'] if s['must']) or '-'}")
+    print(f"  nice-to-have: {', '.join(s['name'] for s in a['skills'] if not s['must']) or '-'}")
+    print(f"  languages:    {', '.join(role['languages'])} (search: {', '.join(role['search_languages'])})")
+    print(f"  topics:       {', '.join(role['topic_search'])} …")
+    print(f"  weights:      {', '.join(f'{k} {v}' for k, v in role['weights'].items())}")
+    print("  seed repos:")
+    for info in a["seed_info"]:
+        stars = f"★{fmt(info['stars'])}" if info.get("stars") else ""
+        print(f"    {info['repo']:<45} {stars:>7}  {info['why']}" + (" (GitHub search)" if info["source"] == "github" else ""))
+    for note in a["notes"]:
+        print(f"  note: {note}")
+    if args.save:
+        try:
+            print(f"\nSaved as role {save_role(args.save, role)} in roles.json: python3 source.py search {args.save}")
+        except ValueError as err:
+            sys.exit(f"Could not save the role: {err}")
+    else:
+        print(f"\nSearch with it: python3 source.py search --jd {args.file}"
+              f"\nOr keep it as a preset:  python3 source.py jd {args.file} --save {result['key']}")
 
 
 def cmd_ui(args):
@@ -254,8 +391,15 @@ def main(argv=None):
     u.add_argument("--no-browser", action="store_true", help="don't open a browser tab")
     u.set_defaults(func=cmd_ui)
 
+    j = sub.add_parser("jd", help="read a job description and show the search profile it turns into")
+    j.add_argument("file", help="text file with the job description (- reads from stdin)")
+    j.add_argument("--save", metavar="KEY", help="also save it as a role preset in roles.json under this key")
+    j.set_defaults(func=cmd_jd)
+
     s = sub.add_parser("search", help="source candidates for a role")
-    s.add_argument("role", help="role preset from roles.json (e.g. ai, founding, backend, web3, smart-contracts, quantum)")
+    s.add_argument("role", nargs="?", help="role preset from roles.json (e.g. ai, founding, backend, web3, quantum)")
+    s.add_argument("--jd", metavar="FILE", help="build the search from a job description in a text file instead")
+    s.add_argument("--role-file", metavar="FILE", help="use a role saved as JSON instead of a preset")
     s.add_argument("-l", "--location", help='comma-separated, e.g. "sf, london" (shorthands: sf, nyc, uk, europe, india…)')
     s.add_argument("-n", "--limit", type=int_at_least(1), default=50, help="candidates in the final report (default 50)")
     s.add_argument("--repos", help="extra seed repos, comma-separated owner/name")
@@ -268,7 +412,10 @@ def main(argv=None):
     s.add_argument("--seed-pages", type=int_at_least(1), default=2, help="pages of 100 contributors per seed repo (default 2)")
     s.add_argument("--per-search", type=int_at_least(1), default=100, help="users per language/location search (default 100)")
     s.add_argument("--per-topic", type=int_at_least(1), default=50, help="repos per topic search (default 50)")
-    s.add_argument("--max-enrich", type=int_at_least(1), default=400, help="max profiles to enrich (default 400)")
+    s.add_argument("--max-enrich", type=int_at_least(1),
+                   help="max profiles to read (default 400, or 1200 with a location)")
+    s.add_argument("--max-deep", type=int_at_least(1),
+                   help="max profiles whose repos and activity get checked (default 2x --limit, at least 100)")
     s.add_argument("--keep-unknown-location", action="store_true", help="keep people with no location set")
     s.add_argument("--include-inactive", action="store_true", help="keep people inactive for 12+ months")
     s.add_argument("--skip-contributors", action="store_true")

@@ -243,6 +243,68 @@ select.input { width: auto; padding-right: 30px; }
 @media (max-width: 560px) { .opener { flex-direction: column; align-items: stretch; } }
 .empty { text-align: center; padding: 48px 16px; color: var(--muted); }
 
+/* role mode + job description */
+.label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.label-row .label { margin: 0; }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.jd-side { border: 1px dashed var(--line); border-radius: 10px; padding: 12px 14px; font-size: 13px; color: var(--muted); }
+.jd-side.ready { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--ink); }
+.jd-side b { display: block; font-size: 13.5px; color: var(--ink); margin-bottom: 2px; overflow-wrap: anywhere; }
+.jd-side .btn { margin-top: 10px; }
+.jd-input { padding: 16px; }
+.jd-input textarea { min-height: 220px; resize: vertical; font-size: 13.5px; line-height: 1.55; display: block; }
+.jd-actions { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 10px; flex-wrap: wrap; }
+.jd-actions .hint { margin: 0 auto 0 0; }
+.jd-grid { display: grid; gap: 12px; margin-top: 16px; }
+.jd-card { padding: 18px; }
+.jd-card h2 { margin-bottom: 2px; }
+.jd-card > .hint:first-of-type { margin: 0 0 12px; }
+.jd-title { font-size: 18px; font-weight: 600; padding: 8px 12px; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.fact { font-size: 12.5px; border-radius: 999px; padding: 2px 10px; background: var(--soft); color: var(--ink); }
+.fact.good { background: var(--a-soft); color: var(--a); }
+.notes { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+.notes li { margin: 2px 0; }
+.req-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+@media (max-width: 700px) { .req-cols { grid-template-columns: 1fr; } }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tag { display: inline-flex; align-items: center; border: 1px solid var(--line); background: var(--panel); border-radius: 999px;
+  font-size: 12.5px; line-height: 1.6; max-width: 100%; }
+.tag > span, .tag > button { border: 0; background: none; padding: 2px 4px 2px 10px; cursor: default; overflow-wrap: anywhere; text-align: left; }
+.tag > button.main { cursor: pointer; }
+.tag > button.main:hover { color: var(--accent); }
+.tag .x { padding: 2px 8px 2px 4px; cursor: pointer; color: var(--faint); font-size: 14px; line-height: 1; }
+.tag .x:hover { color: var(--danger); }
+.tag.must { border-color: var(--accent); background: var(--accent-soft); }
+.tag.star { border-color: var(--ink); }
+.tag-add { border: 1px dashed var(--line); background: none; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; width: 150px; outline: none; }
+.tag-add:focus { border-color: var(--accent); border-style: solid; }
+.sub-label { font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 14px 0 6px; display: block; }
+.sub-label:first-child { margin-top: 0; }
+.seeds { display: grid; gap: 4px; }
+.seed { display: grid; grid-template-columns: minmax(0, 1fr) auto auto 24px; gap: 10px; align-items: center; padding: 5px 8px;
+  border-radius: 8px; font-size: 13.5px; }
+.seed:hover { background: var(--soft); }
+.seed a { overflow-wrap: anywhere; }
+.seed .why { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.seed .stars { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.seed .x { border: 0; background: none; cursor: pointer; color: var(--faint); font-size: 15px; }
+.seed .x:hover { color: var(--danger); }
+.badge { font-size: 10.5px; font-weight: 600; letter-spacing: .02em; padding: 0 6px; border-radius: 4px; background: var(--b-soft); color: var(--b); margin-left: 6px; }
+@media (max-width: 560px) { .seed { grid-template-columns: minmax(0, 1fr) auto 24px; } .seed .why { display: none; } }
+.weights { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; }
+@media (max-width: 700px) { .weights { grid-template-columns: 1fr; } }
+.weight { display: grid; grid-template-columns: 82px minmax(0, 1fr) 30px; gap: 10px; align-items: center; font-size: 13px; }
+.weight input { width: 100%; accent-color: var(--accent); }
+.weight b { font-weight: 500; text-align: right; font-variant-numeric: tabular-nums; }
+.weight span small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.2; }
+.jd-run { position: sticky; bottom: 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 16px;
+  margin-top: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.jd-run .grow { flex: 1; min-width: 180px; font-size: 13px; color: var(--muted); }
+.save-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.save-row .input { width: 240px; flex: 0 1 240px; padding: 6px 10px; }
+.res-reqs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+
 /* toast */
 .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg);
   padding: 10px 16px; border-radius: 10px; font-size: 13.5px; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none;
@@ -270,9 +332,17 @@ select.input { width: auto; padding-right: 30px; }
     <button id="job-banner" class="job-banner hidden" type="button"><span class="spinner"></span><span>A search is running. <u>View progress</u></span></button>
     <form id="form" autocomplete="off">
       <div class="section">
-        <span class="label">Role</span>
-        <div id="roles" class="roles"></div>
-        <div id="role-hint" class="hint"></div>
+        <div class="label-row">
+          <span class="label">Role</span>
+          <div id="mode" class="seg small" role="group" aria-label="How to pick the role">
+            <button type="button" data-mode="preset">Presets</button><button type="button" data-mode="jd">From a JD</button>
+          </div>
+        </div>
+        <div id="preset-pick">
+          <div id="roles" class="roles"></div>
+          <div id="role-hint" class="hint"></div>
+        </div>
+        <div id="jd-side" class="jd-side hidden"></div>
       </div>
       <div class="section">
         <div class="field">
@@ -306,7 +376,7 @@ select.input { width: auto; padding-right: 30px; }
           </div>
           <div class="grid2">
             <div class="field"><label class="mini-label" for="f-min-score">Min score</label><input id="f-min-score" data-field="min_score" class="input" type="number" min="0" max="100" placeholder="0"></div>
-            <div class="field"><label class="mini-label" for="f-max-enrich">Profiles to check</label><input id="f-max-enrich" data-field="max_enrich" class="input" type="number" min="1" placeholder="400"></div>
+            <div class="field"><label class="mini-label" for="f-max-enrich">Profiles to check</label><input id="f-max-enrich" data-field="max_enrich" class="input" type="number" min="1" placeholder="400 / 1200"></div>
             <div class="field"><label class="mini-label" for="f-min-followers">Min followers</label><input id="f-min-followers" data-field="min_followers" class="input" type="number" min="0" placeholder="role default"></div>
             <div class="field"><label class="mini-label" for="f-min-stars">Min project stars</label><input id="f-min-stars" data-field="min_stars" class="input" type="number" min="0" placeholder="200"></div>
             <div class="field"><label class="mini-label" for="f-seed-pages">Contributor pages</label><input id="f-seed-pages" data-field="seed_pages" class="input" type="number" min="1" max="10" placeholder="2"></div>
@@ -334,6 +404,9 @@ select.input { width: auto; padding-right: 30px; }
         <div class="hero">
           <h1>Find senior engineers by the code they've shipped</h1>
           <p class="lead">Pick a role on the left, add a location if you like, and press <b>Find candidates</b>. You'll get a ranked shortlist with the reasons behind every score and a ready-to-send opener.</p>
+          <button id="welcome-jd" class="btn" type="button" style="margin-top:16px">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2h5l3 3v9H4z"/><path d="M9 2v3h3M6 8h4M6 11h4"/></svg>
+            Or search from a job description</button>
         </div>
         <div id="welcome-runs" class="hidden"><span class="label">Recent runs</span><div id="recent" class="recent"></div></div>
         <div class="steps">
@@ -354,6 +427,26 @@ select.input { width: auto; padding-right: 30px; }
           <p class="muted" style="margin:12px 0 0;font-size:13px">Treat the score as a pointer for your own judgement, never as an automatic reject. Contact people once, personally, and honour opt-outs.</p>
         </div>
 
+      </section>
+
+      <section id="view-jd" class="hidden">
+        <div class="hero" style="padding-bottom:16px">
+          <h1>Search from a job description</h1>
+          <p class="lead">Paste the JD. The tool works out the skills, must-haves, languages, location and seniority, then picks the GitHub projects whose contributors fit. Check what it understood, change anything, and search.</p>
+        </div>
+        <div class="panel jd-input">
+          <label class="label" for="jd-text">Job description</label>
+          <textarea id="jd-text" class="input" placeholder="Paste the whole JD: title, what they'll do, requirements, nice-to-haves, location…" spellcheck="false"></textarea>
+          <div class="jd-actions">
+            <span id="jd-count" class="hint">Read on this computer. Only GitHub is contacted, to check matching projects.</span>
+            <button id="jd-clear" class="btn small" type="button">Clear</button>
+            <button id="jd-analyze" class="btn primary" type="button">
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/></svg>
+              <span>Analyze JD</span></button>
+          </div>
+          <div id="jd-error" class="error-text hidden"></div>
+        </div>
+        <div id="jd-profile" class="jd-grid hidden"></div>
       </section>
 
       <section id="view-setup" class="hidden">
@@ -395,6 +488,7 @@ select.input { width: auto; padding-right: 30px; }
           <div>
             <h1 id="res-title"></h1>
             <div id="res-sub" class="muted"></div>
+            <div id="res-reqs" class="res-reqs"></div>
           </div>
           <div class="row" style="flex:none;gap:8px">
             <button id="copy-emails" class="btn small" type="button">Copy emails</button>
@@ -440,7 +534,10 @@ const LOCATIONS = [["sf", "SF Bay Area"], ["nyc", "New York"], ["london", "Londo
                    ["germany", "Germany"], ["india", "India"], ["singapore", "Singapore"], ["dubai", "Dubai"], ["remote", "Remote"]];
 const BREAKDOWN = ["impact", "seed", "notable", "activity", "experience", "fit"];
 const state = { roles: [], runs: [], role: store.get("role", null), exclude: new Set(), status: null,
-                job: null, run: null, view: "welcome", tier: "all", sort: "score", q: "", onlyEmail: false };
+                job: null, run: null, view: "welcome", tier: "all", sort: "score", q: "", onlyEmail: false,
+                mode: store.get("mode", "preset") === "jd" ? "jd" : "preset", jd: store.get("jd", null) };
+const WEIGHT_HELP = { impact: "stars on own projects", seed: "commits to the seed repos", notable: "other big projects",
+                      activity: "last year & 90 days", experience: "account age, followers", fit: "matches the JD" };
 
 async function api(path, options = {}) {
   const res = await fetch(path, { ...options, headers: { "Content-Type": "application/json", "X-Sourcer": "1" } });
@@ -469,7 +566,7 @@ async function copy(text) {
 
 function show(view) {
   state.view = view;
-  for (const v of ["welcome", "setup", "running", "results"]) $("#view-" + v).classList.toggle("hidden", v !== view);
+  for (const v of ["welcome", "jd", "setup", "running", "results"]) $("#view-" + v).classList.toggle("hidden", v !== view);
   $(".main").scrollTop = 0;
   updateRunButton();
 }
@@ -581,8 +678,10 @@ const range = $("#f-limit-range"), limit = $("#f-limit");
 range.addEventListener("input", () => { limit.value = range.value; saveForm(); });
 limit.addEventListener("input", () => { range.value = Math.min(200, Math.max(10, +limit.value || 10)); });
 
+function currentKey() { return state.mode === "jd" ? (state.jd && state.jd.result ? state.jd.result.key : null) : state.role; }
 function renderExcludes() {
-  const runs = state.runs.filter(r => r.role === state.role).slice(0, 10);
+  const key = currentKey();
+  const runs = state.runs.filter(r => r.role === key).slice(0, 10);
   $("#exclude-wrap").classList.toggle("hidden", !runs.length);
   $("#exclude-chips").innerHTML = runs.map(r =>
     `<button type="button" class="chip" data-exclude="${esc(r.name)}" aria-pressed="${state.exclude.has(r.name)}"
@@ -599,11 +698,15 @@ $("#exclude-chips").addEventListener("click", e => {
 function formData() {
   const data = { role: state.role, exclude_runs: [...state.exclude] };
   for (const el of $$("[data-field]")) data[el.dataset.field] = el.type === "checkbox" ? el.checked : el.value.trim();
+  if (state.mode === "jd" && state.jd && state.jd.result) {
+    delete data.role;
+    data.custom_role = { ...state.jd.result.role, key: state.jd.result.key };
+  }
   return data;
 }
 function saveForm() {
   const data = formData();
-  delete data.role; delete data.exclude_runs;
+  delete data.role; delete data.exclude_runs; delete data.custom_role;
   store.set("form", data);
 }
 function restoreForm() {
@@ -621,29 +724,276 @@ $("#form").addEventListener("change", saveForm);
 
 function updateRunButton() {
   const btn = $("#run-btn"), running = state.job && state.job.state === "running";
-  btn.disabled = !!running || !state.role || !(state.status && state.status.ok);
-  btn.querySelector("span").textContent = running ? "Search running…" : !state.role ? "Pick a role first" : "Find candidates";
+  const ready = state.mode === "jd" ? !!(state.jd && state.jd.result) : !!state.role;
+  const missing = state.mode === "jd" ? "Analyze a JD first" : "Pick a role first";
+  btn.disabled = !!running || !ready || !(state.status && state.status.ok);
+  btn.querySelector("span").textContent = running ? "Search running…" : !ready ? missing : "Find candidates";
   $("#job-banner").classList.toggle("hidden", !running || state.view === "running");
+  const jdRun = $("#jd-run-btn");
+  if (jdRun) { jdRun.disabled = btn.disabled; jdRun.querySelector("span").textContent = running ? "Search running…" : "Find candidates"; }
 }
 
-$("#form").addEventListener("submit", async e => {
-  e.preventDefault();
-  if (!state.role) return toast("Pick a role first", true);
+$("#form").addEventListener("submit", e => { e.preventDefault(); startSearch(); });
+async function startSearch() {
+  if (state.mode === "jd" && !(state.jd && state.jd.result)) { show("jd"); return toast("Analyze a job description first", true); }
+  if (state.mode === "preset" && !state.role) return toast("Pick a role first", true);
+  if (state.mode === "jd") {
+    const role = state.jd.result.role;
+    if (!role.seed_repos.length && !role.search_languages.length) return toast("Add at least one seed repo or language", true);
+    if (!role.label.trim()) role.label = "Custom role";
+  }
   const body = formData();
   try {
     const job = await api("/api/search", { method: "POST", body: JSON.stringify(body) });
     attachJob(job, body);
   } catch (err) { toast(err.message, true); }
+}
+
+/* ---------- job description ---------- */
+function saveJd() { store.set("jd", state.jd && state.jd.result ? { result: state.jd.result } : null); }
+
+function setMode(mode) {
+  state.mode = mode;
+  store.set("mode", mode);
+  state.exclude.clear();
+  renderMode();
+  if (mode === "jd") show("jd");
+  else if (state.view === "jd") show(state.run ? "results" : "welcome");
+  updateRunButton();
+}
+function renderMode() {
+  for (const b of $$("#mode button")) b.setAttribute("aria-pressed", b.dataset.mode === state.mode);
+  $("#preset-pick").classList.toggle("hidden", state.mode !== "preset");
+  $("#jd-side").classList.toggle("hidden", state.mode !== "jd");
+  renderJdSide();
+  renderExcludes();
+}
+$("#mode").addEventListener("click", e => { const b = e.target.closest("[data-mode]"); if (b) setMode(b.dataset.mode); });
+$("#welcome-jd").addEventListener("click", () => setMode("jd"));
+
+function renderJdSide() {
+  const el = $("#jd-side"), r = state.jd && state.jd.result;
+  el.classList.toggle("ready", !!r);
+  if (!r) {
+    el.innerHTML = `Paste a job description on the right and press <b style="display:inline">Analyze JD</b>.
+      <button type="button" class="btn small" data-open-jd>Open the JD screen</button>`;
+    return;
+  }
+  const must = r.role.requirements.filter(q => q.must).map(q => q.name);
+  el.innerHTML = `<b>${esc(r.role.label || "Custom role")}</b>
+    ${must.length ? `Must-haves: ${must.slice(0, 5).map(esc).join(", ")}<br>` : ""}
+    ${num(r.role.seed_repos.length)} seed repos · searching ${r.role.search_languages.map(esc).join(", ") || "no languages"}
+    <div><button type="button" class="btn small" data-open-jd>Review search profile</button></div>`;
+}
+$("#jd-side").addEventListener("click", e => { if (e.target.closest("[data-open-jd]")) show("jd"); });
+
+const jdText = $("#jd-text");
+jdText.value = store.get("jd-text", "");
+jdText.addEventListener("input", () => { store.set("jd-text", jdText.value); });
+$("#jd-clear").addEventListener("click", () => {
+  jdText.value = ""; store.set("jd-text", "");
+  state.jd = null; saveJd();
+  $("#jd-profile").classList.add("hidden"); $("#jd-error").classList.add("hidden");
+  renderJdSide(); updateRunButton(); jdText.focus();
+});
+
+$("#jd-analyze").addEventListener("click", async () => {
+  const btn = $("#jd-analyze"), err = $("#jd-error");
+  err.classList.add("hidden");
+  if (jdText.value.trim().length < 40) { err.textContent = "Paste the full job description first."; return err.classList.remove("hidden"); }
+  btn.disabled = true;
+  btn.querySelector("span").textContent = "Reading the JD and checking GitHub…";
+  try {
+    const result = await api("/api/jd", { method: "POST", body: JSON.stringify({ text: jdText.value }) });
+    state.jd = { result };
+    saveJd();
+    const loc = result.analysis.location;
+    if (loc && $("#f-location").value.trim().toLowerCase() !== loc) {
+      $("#f-location").value = loc; renderLocChips(); saveForm();
+      toast(`Location set to “${loc}” from the JD`);
+    }
+    state.exclude.clear();
+    renderJdProfile(); renderJdSide(); renderExcludes(); updateRunButton();
+    $("#jd-profile").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (ex) {
+    err.textContent = ex.message; err.classList.remove("hidden");
+  } finally { btn.disabled = false; btn.querySelector("span").textContent = "Analyze JD"; }
+});
+
+function tag(label, attrs = {}) {
+  const { act, i, cls = "", title = "", main } = attrs;
+  const body = main ? `<button type="button" class="main" data-act="${main}" data-i="${i}" title="${esc(title)}">${label}</button>`
+                    : `<span title="${esc(title)}">${label}</span>`;
+  return `<span class="tag ${cls}">${body}<button type="button" class="x" data-act="${act}" data-i="${i}" aria-label="Remove">×</button></span>`;
+}
+const adder = (list, placeholder) => `<input class="tag-add" data-add="${list}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}">`;
+
+function renderJdProfile() {
+  const box = $("#jd-profile"), r = state.jd && state.jd.result;
+  if (!r) return box.classList.add("hidden");
+  const { role, analysis: a } = r;
+  const facts = [
+    ...(a.levels || []).map(l => `<span class="fact">${esc(l)}</span>`),
+    a.years ? `<span class="fact">${esc(a.years)}+ years</span>` : "",
+    `<span class="fact">${a.location ? "📍 " + esc(a.location) : a.remote ? "Remote" : "Location not stated"}</span>`,
+    a.onsite ? `<span class="fact">In person / hybrid</span>` : "",
+    a.visa ? `<span class="fact good">Sponsors visas</span>` : "",
+    ...(a.companies || []).slice(0, 8).map(c => `<span class="fact" title="Bio keyword">${esc(c)}</span>`),
+    ...(a.schools || []).slice(0, 6).map(c => `<span class="fact" title="Bio keyword">${esc(c)}</span>`),
+  ].join("");
+  const reqTags = must => role.requirements.map((q, i) => q.must === must ? tag(esc(q.name), { act: "del-req", i, main: "flip-req",
+    cls: must ? "must" : "", title: must ? "Must-have. Click to make it nice-to-have." : "Nice-to-have. Click to make it a must-have." }) : "").join("");
+  const seeds = role.seed_repos.map((repo, i) => {
+    const info = (a.seed_info || []).find(x => x.repo === repo) || {};
+    return `<div class="seed"><a href="https://github.com/${esc(repo)}" target="_blank" rel="noopener">${esc(repo)}</a>
+      <span class="why">${esc(info.why || "added by you")}${info.source === "github" ? `<span class="badge" title="Found by GitHub search, not the curated list: check it fits">search</span>` : ""}</span>
+      <span class="stars">${info.stars ? "★" + num(info.stars) : ""}</span>
+      <button type="button" class="x" data-act="del-seed" data-i="${i}" aria-label="Remove ${esc(repo)}">×</button></div>`;
+  }).join("");
+  const langs = role.languages.map((l, i) => {
+    const on = role.search_languages.includes(l);
+    return tag((on ? "★ " : "") + esc(l), { act: "del-lang", i, main: "star-lang", cls: on ? "star" : "",
+      title: on ? "Used for user search. Click to stop searching on it." : "Counts toward fit. Click to also search users by it (up to 3)." });
+  }).join("");
+  const weightSum = Object.values(role.weights).reduce((x, y) => x + y, 0) || 1;
+  box.innerHTML = `
+    <div class="panel jd-card">
+      <label class="label" for="jd-label">Search profile</label>
+      <input id="jd-label" class="input jd-title" value="${esc(role.label)}" maxlength="80" aria-label="Role title">
+      <div class="facts">${facts}</div>
+      ${(a.notes || []).length ? `<ul class="notes">${a.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
+    </div>
+    <div class="panel jd-card">
+      <h2>Requirements</h2>
+      <p class="hint">Each candidate's score shows which of these their GitHub shows evidence of. Must-haves count double. Click one to switch it.</p>
+      <div class="req-cols">
+        <div><span class="sub-label">Must-have</span><div class="tags">${reqTags(true) || `<span class="hint" style="margin:0">None</span>`}</div></div>
+        <div><span class="sub-label">Nice-to-have</span><div class="tags">${reqTags(false) || `<span class="hint" style="margin:0">None</span>`}</div></div>
+      </div>
+      <span class="sub-label">Add a requirement</span>
+      <div class="tags">${adder("req", "e.g. Kafka, then Enter")}</div>
+    </div>
+    <div class="panel jd-card">
+      <h2>Where to look</h2>
+      <p class="hint">Top contributors to these projects are the strongest leads. Remove any that don't fit and add your own.</p>
+      <div class="seeds">${seeds || `<span class="hint">No seed repos yet: add some below.</span>`}</div>
+      <div class="tags" style="margin-top:8px">${adder("seed", "owner/name, then Enter")}</div>
+      <span class="sub-label">Languages <span class="muted" style="font-weight:400">· ★ = also search users by it</span></span>
+      <div class="tags">${langs}${adder("lang", "Add language")}</div>
+      <span class="sub-label">Popular-project topics</span>
+      <div class="tags">${(role.topic_search || []).map((t, i) => tag(esc(t), { act: "del-topic", i })).join("")}${adder("topic", "GitHub topic")}</div>
+    </div>
+    <div class="panel jd-card">
+      <h2>How to rank</h2>
+      <p class="hint">Set from the JD's wording: ownership and shipping raise impact, open source raises seed, research raises notable.</p>
+      <div class="weights">${Object.entries(role.weights).map(([k, v]) => `
+        <label class="weight"><span>${k}<small>${esc(WEIGHT_HELP[k] || "")}</small></span>
+          <input type="range" min="0" max="50" value="${v}" data-weight="${k}"><b>${Math.round(v * 100 / weightSum)}%</b></label>`).join("")}</div>
+      <details class="adv" style="margin-top:14px"><summary>Bio keywords (${role.keywords.length})</summary>
+        <div class="tags" style="margin-top:8px">${role.keywords.map((k, i) => tag(esc(k), { act: "del-kw", i })).join("")}${adder("kw", "Add keyword")}</div>
+      </details>
+    </div>
+    <div class="jd-run">
+      <div class="grow">Location: <b>${esc($("#f-location").value.trim() || "anywhere")}</b> · other options are on the left.
+        <div id="save-row" class="save-row hidden">
+          <input id="save-key" class="input" value="${esc(r.key)}" aria-label="Preset key" spellcheck="false">
+          <button id="save-confirm" class="btn small" type="button">Save to roles.json</button>
+          <span class="hint" style="margin:0">roles.json goes to GitHub if you push it, so keep client names out of the title.</span>
+        </div>
+      </div>
+      <button id="save-preset" class="btn small" type="button">Save as preset…</button>
+      <button id="jd-run-btn" class="btn primary" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5 14 14"/></svg>
+        <span>Find candidates</span></button>
+    </div>`;
+  box.classList.remove("hidden");
+  updateRunButton();
+}
+
+function jdChanged() { saveJd(); renderJdProfile(); renderJdSide(); }
+function addUnique(list, value) { if (value && !list.some(x => x.toLowerCase() === value.toLowerCase())) list.push(value); }
+
+$("#jd-profile").addEventListener("click", async e => {
+  const r = state.jd && state.jd.result;
+  if (!r) return;
+  const role = r.role, btn = e.target.closest("[data-act]");
+  if (btn) {
+    const i = +btn.dataset.i;
+    const acts = {
+      "del-req": () => role.requirements.splice(i, 1),
+      "flip-req": () => { role.requirements[i].must = !role.requirements[i].must; },
+      "del-seed": () => role.seed_repos.splice(i, 1),
+      "del-lang": () => { const [l] = role.languages.splice(i, 1); role.search_languages = role.search_languages.filter(x => x !== l); },
+      "star-lang": () => {
+        const l = role.languages[i];
+        if (role.search_languages.includes(l)) role.search_languages = role.search_languages.filter(x => x !== l);
+        else if (role.search_languages.length >= 3) return toast("Up to 3 search languages: each one is a separate search", true);
+        else role.search_languages.push(l);
+      },
+      "del-topic": () => role.topic_search.splice(i, 1),
+      "del-kw": () => role.keywords.splice(i, 1),
+    };
+    if (acts[btn.dataset.act]) { if (acts[btn.dataset.act]() !== false) jdChanged(); }
+    return;
+  }
+  if (e.target.closest("#jd-run-btn")) return startSearch();
+  if (e.target.closest("#save-preset")) { $("#save-row").classList.toggle("hidden"); return $("#save-key").focus(); }
+  if (e.target.closest("#save-confirm")) {
+    const key = $("#save-key").value.trim().toLowerCase();
+    try {
+      await api("/api/roles", { method: "POST", body: JSON.stringify({ key, role: role }) });
+      state.roles = await api("/api/roles");
+      renderRoles();
+      toast(`Saved as preset “${key}”`);
+      $("#save-row").classList.add("hidden");
+    } catch (err) { toast(err.message, true); }
+  }
+});
+
+$("#jd-profile").addEventListener("keydown", e => {
+  const input = e.target.closest("[data-add]");
+  if (!input || e.key !== "Enter") return;
+  e.preventDefault();
+  const r = state.jd && state.jd.result, value = input.value.trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\/+$/, "");
+  if (!r || !value) return;
+  const role = r.role, list = input.dataset.add;
+  if (list === "seed") {
+    if (!/^[\w.-]+\/[\w.-]+$/.test(value)) return toast("Use owner/name, like vercel/next.js", true);
+    addUnique(role.seed_repos, value);
+  } else if (list === "lang") addUnique(role.languages, value);
+  else if (list === "topic") addUnique(role.topic_search, value.toLowerCase().replace(/\s+/g, "-"));
+  else if (list === "kw") addUnique(role.keywords, value.toLowerCase());
+  else if (list === "req" && !role.requirements.some(q => q.name.toLowerCase() === value.toLowerCase())) {
+    const low = value.toLowerCase();
+    role.requirements.push({ name: value, must: true, languages: role.languages.filter(l => l.toLowerCase() === low),
+      topics: [low.replace(/\s+/g, "-")], keywords: [low], repos: [] });
+    addUnique(role.keywords, low);
+  }
+  jdChanged();
+  setTimeout(() => { const again = $(`[data-add="${list}"]`); if (again) again.focus(); }, 0);
+});
+
+$("#jd-profile").addEventListener("input", e => {
+  const r = state.jd && state.jd.result;
+  if (!r) return;
+  if (e.target.id === "jd-label") { r.role.label = e.target.value; saveJd(); renderJdSide(); }
+  const k = e.target.dataset && e.target.dataset.weight;
+  if (k) {
+    r.role.weights[k] = +e.target.value;
+    saveJd();
+    const sum = Object.values(r.role.weights).reduce((x, y) => x + y, 0) || 1;
+    for (const el of $$("[data-weight]")) el.nextElementSibling.textContent = Math.round(r.role.weights[el.dataset.weight] * 100 / sum) + "%";
+  }
 });
 
 /* ---------- running ---------- */
 function attachJob(job, form) {
-  const role = state.roles.find(r => r.key === (form && form.role)) || null;
+  const role = (form && form.custom_role) || state.roles.find(r => r.key === (form && form.role)) || null;
   const locs = form ? (form.location || "").split(",").filter(s => s.trim()).length : 0;
   const extra = form ? (form.repos || "").split(",").filter(s => s.trim()).length : 0;
   const langs = form && form.languages ? form.languages.split(",").filter(s => s.trim()).length : role ? role.search_languages.length : 2;
   state.job = { ...job, lines: [...(job.lines || [])], form,
-    expected: role ? role.seed_repos.length + extra + langs * Math.max(1, locs) + role.topic_search.length : 0 };
+    expected: role ? role.seed_repos.length + extra + langs * Math.max(1, locs) + (role.topic_search || []).length : 0 };
   store.set("job-form", form || null);
   $("#run-title").textContent = role ? `Searching for ${role.label}s` : "Searching…";
   $("#run-sub").textContent = form ? (form.location ? `in ${form.location}` : "anywhere") : "";
@@ -656,11 +1006,12 @@ function attachJob(job, form) {
 }
 
 function parseProgress(lines, expected) {
-  const p = { phase: "discover", steps: 0, found: null, enriched: [0, 0], filtered: "", retrying: false, emails: false };
+  const p = { phase: "discover", steps: 0, found: null, read: [0, 0], enriched: [0, 0], filtered: "", retrying: false, emails: false };
   for (const line of lines) {
     let m;
     if (p.phase === "discover" && (/: \d+ (contributors|users|project owners)$/.test(line) || /^\s+! /.test(line))) p.steps++;
     if ((m = line.match(/^(\d+) unique people found/))) { p.phase = "enrich"; p.found = +m[1]; }
+    if ((m = line.match(/read profiles (\d+)\/(\d+)/))) p.read = [+m[1], +m[2]];
     if ((m = line.match(/enriched (\d+)\/(\d+)/))) p.enriched = [+m[1], +m[2]];
     if (line.startsWith("Filtered out")) { p.phase = "score"; p.filtered = line; }
     if (line.startsWith("Looking up commit emails")) { p.phase = "emails"; p.emails = true; }
@@ -669,7 +1020,8 @@ function parseProgress(lines, expected) {
   const last = lines[lines.length - 1] || "";
   p.retrying = /waiting \d+s before retrying/.test(last) ? last.trim() : "";
   const discover = expected ? Math.min(1, p.steps / expected) : 0.5;
-  const enrich = p.enriched[1] ? p.enriched[0] / p.enriched[1] : 0;
+  // Reading profiles is quick; checking each person's work is most of the wait.
+  const enrich = 0.2 * (p.read[1] ? p.read[0] / p.read[1] : 0) + 0.8 * (p.enriched[1] ? p.enriched[0] / p.enriched[1] : 0);
   p.pct = { discover: 3 + 32 * discover, enrich: 35 + 55 * enrich, score: 92, emails: 95, done: 100 }[p.phase];
   return p;
 }
@@ -687,7 +1039,8 @@ function renderProgress() {
   $("#bar").style.width = (job.state === "done" ? 100 : p.pct) + "%";
   const text = {
     discover: job.expected ? `Discovering people · ${Math.min(p.steps, job.expected)} of ${job.expected} sources checked` : "Discovering people…",
-    enrich: p.enriched[1] ? `Checking profiles · ${num(p.enriched[0])} of ${num(p.enriched[1])}` + (p.found ? ` (from ${num(p.found)} found)` : "") : "Checking profiles…",
+    enrich: p.enriched[1] ? `Checking their work · ${num(p.enriched[0])} of ${num(p.enriched[1])} best leads` + (p.found ? ` (from ${num(p.found)} found)` : "")
+      : p.read[1] ? `Reading profiles · ${num(p.read[0])} of ${num(p.read[1])}` : "Reading profiles…",
     score: "Scoring and filtering…", emails: "Looking up emails from public commits…", done: "Finishing up…",
   }[p.phase];
   $("#progress-text").textContent = text;
@@ -796,6 +1149,9 @@ function renderResults() {
   $("#res-title").textContent = (meta.role_label || "Candidates") + ((meta.query || {}).location ? ` · ${meta.query.location}` : "");
   $("#res-sub").textContent = [when ? new Date(when).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "",
     meta.discovered ? `${num(meta.discovered)} people discovered, ${num(meta.enriched)} profiles checked` : ""].filter(Boolean).join(" · ");
+  $("#res-reqs").innerHTML = (meta.requirements || []).length
+    ? `<span class="muted" style="font-size:12.5px">Matched against:</span>` + meta.requirements.map(r =>
+        `<span class="fact${r.must ? " good" : ""}" title="${r.must ? "Must-have" : "Nice-to-have"}">${esc(r.name)}</span>`).join("") : "";
   $("#dl-csv").href = `/runs/${encodeURIComponent(name)}/candidates.csv`;
   $("#open-report").href = `/runs/${encodeURIComponent(name)}/report.html`;
   const count = t => people.filter(c => tierOf(c) === t).length;
@@ -906,6 +1262,8 @@ $("#copy-emails").addEventListener("click", async () => {
   catch (err) { toast(err.message, true); state.roles = []; }
   if (!state.roles.some(r => r.key === state.role)) state.role = null;
   renderRoles();
+  renderMode();
+  if (state.jd && state.jd.result) renderJdProfile();
   await loadRuns();
   let resumed = false;
   try {
@@ -915,7 +1273,9 @@ $("#copy-emails").addEventListener("click", async () => {
   if (!resumed) {
     const fromHash = decodeURIComponent((location.hash.match(/^#run=(.+)$/) || [])[1] || "");
     const last = fromHash || store.get("last-run", null);
-    if (last && state.runs.some(r => r.name === last)) await openRun(last);
+    if (fromHash && state.runs.some(r => r.name === fromHash)) await openRun(fromHash);
+    else if (state.mode === "jd") show("jd");
+    else if (last && state.runs.some(r => r.name === last)) await openRun(last);
   }
   loadStatus();
 })();

@@ -9,70 +9,103 @@ from datetime import datetime, timedelta, timezone
 
 from .github import GitHubError, log
 
-FRAGMENT = """
+# Enrichment runs in two stages because GitHub caps GraphQL at about 60s of server time per minute. Reading a
+# profile is cheap (~0.1s), but a person's repos and contribution history cost ~2s each. So the profile is read for
+# every lead, people outside the location are dropped, and only the strongest leads get the expensive check.
+PROFILE = """
 fragment U on User {
   login name bio company location email websiteUrl twitterUsername isHireable createdAt url
   followers { totalCount }
   organizations(first: 10) { nodes { login } }
   socialAccounts(first: 10) { nodes { provider url } }
-  repositories(ownerAffiliations: OWNER, isFork: false, first: 30,
+}"""
+REPOS = """
+  repositories(ownerAffiliations: OWNER, isFork: false, first: 20,
                orderBy: {field: STARGAZERS, direction: DESC}) {
     totalCount
     nodes {
       nameWithOwner stargazerCount pushedAt description
       primaryLanguage { name }
-      repositoryTopics(first: 8) { nodes { topic { name } } }
+      repositoryTopics(first: 5) { nodes { topic { name } } }
     }
+  }"""
+WORK = """
+fragment U on User {
+  login %s
+  contributionsCollection {
+    commitContributionsByRepository(maxRepositories: 25) {
+      repository { nameWithOwner stargazerCount }
+      contributions { totalCount }
+    }
+    contributionCalendar { totalContributions weeks { contributionDays { contributionCount date } } }
   }
-  repositoriesContributedTo(first: 30, contributionTypes: [COMMIT, PULL_REQUEST],
-                            orderBy: {field: STARGAZERS, direction: DESC}) {
-    nodes { nameWithOwner stargazerCount primaryLanguage { name } }
-  }
-  year: contributionsCollection { contributionCalendar { totalContributions } }
-  recent: contributionsCollection(from: "%s") { contributionCalendar { totalContributions } }
-}"""
+}""" % REPOS
+# For the odd account whose history is too big to load within GitHub's 10s limit: repos only.
+WORK_LIGHT = "fragment U on User { login %s }" % REPOS
 
 
 def parse_time(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00")) if value else None
 
 
-def _query(logins, since):
+def _query(logins, fragment):
     parts = [f"u{i}: user(login: {json.dumps(login)}) {{ ...U }}" for i, login in enumerate(logins)]
-    return "query {\n" + "\n".join(parts) + "\n}\n" + FRAGMENT % since
+    return "query {\n" + "\n".join(parts) + "\n}\n" + fragment
 
 
-def _fetch(gh, logins, since):
+def _fetch(gh, logins, fragment, fallback=None):
     try:
-        data = gh.graphql(_query(logins, since))
+        data = gh.graphql(_query(logins, fragment))
         return [data.get(f"u{i}") for i in range(len(logins))]
     except GitHubError as err:
         if len(logins) == 1:
-            log(f"  ! could not enrich {logins[0]}: {err}")
+            if fallback:
+                return _fetch(gh, logins, fallback)
+            log(f"  ! could not check {logins[0]}: {err}")
             return [None]
         # A heavy batch can time out on GitHub's side; retry it in halves, down to one user at a time.
         half = len(logins) // 2
-        return _fetch(gh, logins[:half], since) + _fetch(gh, logins[half:], since)
+        return _fetch(gh, logins[:half], fragment, fallback) + _fetch(gh, logins[half:], fragment, fallback)
 
 
-def enrich(gh, logins, batch_size=5, workers=4, now=None):
-    now = now or datetime.now(timezone.utc)
-    # Day precision keeps the query text (and so the cache key) stable within a day.
-    since = (now - timedelta(days=90)).strftime("%Y-%m-%dT00:00:00Z")
+def _batched(gh, logins, fragment, batch_size, workers, label, fallback=None):
     batches = [logins[i:i + batch_size] for i in range(0, len(logins), batch_size)]
-    profiles = []
+    out = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        for done, users in enumerate(pool.map(lambda b: _fetch(gh, b, since), batches), 1):
-            for u in users:
-                if not u:
-                    continue
-                try:
-                    profiles.append(normalize(u))
-                except (KeyError, TypeError, ValueError, AttributeError) as err:
-                    log(f"  ! skipped {u.get('login', '?')}: unexpected profile data ({err!r})")
-            if done % 5 == 0 or done == len(batches):
-                log(f"  enriched {min(done * batch_size, len(logins))}/{len(logins)}")
+        for done, users in enumerate(pool.map(lambda b: _fetch(gh, b, fragment, fallback), batches), 1):
+            out.extend(users)
+            if done % max(1, len(batches) // 20) == 0 or done == len(batches):
+                log(f"  {label} {min(done * batch_size, len(logins))}/{len(logins)}")
+    return out
+
+
+def fetch_profiles(gh, logins, batch_size=20, workers=4):
+    """Stage 1: basic profile (name, bio, location, followers, links) for every lead. Missing users are dropped."""
+    return [u for u in _batched(gh, logins, PROFILE, batch_size, workers, "read profiles") if u and u.get("login")]
+
+
+def add_work(gh, users, batch_size=2, workers=4):
+    """Stage 2: add repos and the last year of contributions to stage-1 profiles, in place."""
+    work = _batched(gh, [u["login"] for u in users], WORK, batch_size, workers, "enriched", fallback=WORK_LIGHT)
+    for user, extra in zip(users, work):
+        user.update({k: v for k, v in (extra or {}).items() if k != "login"})
+    return users
+
+
+def to_profiles(users, now=None):
+    profiles = []
+    for u in users:
+        try:
+            profiles.append(normalize(u, now))
+        except (KeyError, TypeError, ValueError, AttributeError) as err:
+            log(f"  ! skipped {u.get('login', '?')}: unexpected profile data ({err!r})")
     return profiles
+
+
+def enrich(gh, logins, batch_size=2, workers=4, now=None):
+    """Both stages for every login (no filtering in between)."""
+    users = fetch_profiles(gh, logins, workers=workers)
+    return to_profiles(add_work(gh, users, batch_size=batch_size, workers=workers), now)
 
 
 def _nodes(connection):
@@ -107,15 +140,40 @@ def linkedin_search(name, company):
     return "https://www.linkedin.com/search/results/people/?" + urllib.parse.urlencode({"keywords": words})
 
 
-def _total_contributions(collection):
-    return ((collection or {}).get("contributionCalendar") or {}).get("totalContributions") or 0
+def _calendar(u):
+    collection = u.get("contributionsCollection") or u.get("year") or {}
+    return collection.get("contributionCalendar") or {}
 
 
-def normalize(u):
+def _contributions(u, now):
+    """(last year, last 90 days). Older cached profiles carried the 90-day total as its own field."""
+    calendar = _calendar(u)
+    year = calendar.get("totalContributions") or 0
+    if "recent" in u:
+        return year, ((u.get("recent") or {}).get("contributionCalendar") or {}).get("totalContributions") or 0
+    cutoff = ((now or datetime.now(timezone.utc)) - timedelta(days=90)).strftime("%Y-%m-%d")
+    recent = sum(day.get("contributionCount") or 0 for week in calendar.get("weeks") or [] for day in
+                 (week or {}).get("contributionDays") or [] if day and (day.get("date") or "") >= cutoff)
+    return year, recent
+
+
+def _contributed(u):
+    """Other people's repos they committed to in the last year, with commit counts when GitHub gives them."""
+    by_repo = ((u.get("contributionsCollection") or {}).get("commitContributionsByRepository")) or []
+    if by_repo:
+        return [{"name": (r.get("repository") or {}).get("nameWithOwner"),
+                 "stars": (r.get("repository") or {}).get("stargazerCount") or 0,
+                 "commits": (r.get("contributions") or {}).get("totalCount") or 0} for r in by_repo if r]
+    return [{"name": r.get("nameWithOwner"), "stars": r.get("stargazerCount") or 0, "commits": 0}
+            for r in _nodes(u.get("repositoriesContributedTo"))]
+
+
+def normalize(u, now=None):
     repos = [r for r in _nodes(u.get("repositories")) if r.get("nameWithOwner")]
     login_prefix = u["login"].lower() + "/"
-    contributed = [r for r in _nodes(u.get("repositoriesContributedTo"))
-                   if r.get("nameWithOwner") and not r["nameWithOwner"].lower().startswith(login_prefix)]
+    contributed = sorted((r for r in _contributed(u) if r["name"] and not r["name"].lower().startswith(login_prefix)),
+                         key=lambda r: r["stars"], reverse=True)
+    contrib_year, contrib_90d = _contributions(u, now)
     languages = Counter(r["primaryLanguage"]["name"] for r in repos if (r.get("primaryLanguage") or {}).get("name"))
     topics = Counter(t["topic"]["name"] for r in repos for t in _nodes(r.get("repositoryTopics"))
                      if (t.get("topic") or {}).get("name"))
@@ -146,9 +204,9 @@ def normalize(u):
                      "description": _text(top.get("description"))} if top else None,
         "languages": languages,
         "topics": topics,
-        "contributed": [{"name": r["nameWithOwner"], "stars": r.get("stargazerCount") or 0} for r in contributed],
-        "contrib_year": _total_contributions(u.get("year")),
-        "contrib_90d": _total_contributions(u.get("recent")),
+        "contributed": contributed,
+        "contrib_year": contrib_year,
+        "contrib_90d": contrib_90d,
         "last_push": max(pushes) if pushes else None,
     }
 

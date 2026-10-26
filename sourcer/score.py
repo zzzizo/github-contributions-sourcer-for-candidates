@@ -33,8 +33,27 @@ def seed_contributions(profile, role, discovered):
     """Commit counts to the role's seed repos (from discovery) and seed repos seen only in recent activity."""
     seeds = {r.lower(): r for r in role["seed_repos"]}
     counts = {seeds[repo.lower()]: n for repo, n in discovered.items() if repo.lower() in seeds}
+    for r in profile["contributed"]:
+        repo = seeds.get(r["name"].lower())
+        if repo and r.get("commits") and repo not in counts:
+            counts[repo] = r["commits"]  # last year's commits, when discovery didn't see them
     recent = {seeds[r["name"].lower()] for r in profile["contributed"] if r["name"].lower() in seeds} - counts.keys()
     return counts, recent
+
+
+def requirement_hits(profile, requirements):
+    """The JD requirements this profile shows evidence of: languages, repo topics, flagship repos or words."""
+    top_langs = {l.lower() for l, _ in profile["languages"].most_common(3)}
+    topics = {t.lower() for t in profile["topics"]}
+    contributed = {r["name"].lower() for r in profile["contributed"]}
+    text = " ".join([profile["bio"], profile["company"], " ".join(profile["orgs"]),
+                     " ".join(f"{r['name']} {r['description']}" for r in profile["repos"]),
+                     " ".join(r["name"] for r in profile["contributed"])]).lower()
+    return [req for req in requirements
+            if top_langs & {l.lower() for l in req.get("languages", [])}
+            or topics & {t.lower() for t in req.get("topics", [])}
+            or contributed & {r.lower() for r in req.get("repos", [])}
+            or word_hits(text, req.get("keywords", []))]
 
 
 def score(profile, role, discovered=None, now=None):
@@ -92,6 +111,17 @@ def score(profile, role, discovered=None, now=None):
     senior_hits = word_hits(profile["bio"].lower() + " " + profile["company"].lower(), SENIORITY)
     parts["fit"] = (0.35 * lang_share + 0.25 * min(1.0, len(topic_hits) / 3)
                     + 0.2 * min(1.0, len(keyword_hits) / 2) + 0.2 * (1.0 if senior_hits else 0.0))
+    requirements = role.get("requirements") or []
+    if requirements:
+        hits = requirement_hits(profile, requirements)
+        names = {req["name"] for req in hits}
+        weight = sum(2 if req.get("must") else 1 for req in requirements)
+        coverage = sum(2 if req.get("must") else 1 for req in hits) / weight
+        parts["fit"] = 0.6 * parts["fit"] + 0.4 * coverage
+        missing = [req["name"] for req in requirements if req.get("must") and req["name"] not in names]
+        if hits:
+            reasons.insert(0, "Matches the JD: " + ", ".join(req["name"] for req in hits[:6])
+                           + (f" · no sign of: {', '.join(missing[:3])}" if missing else ""))
     top_langs = [l for l, _ in profile["languages"].most_common(4)]
     if top_langs:
         reasons.append("Writes " + ", ".join(top_langs) + (f" · topics: {', '.join(topic_hits[:4])}" if topic_hits else ""))

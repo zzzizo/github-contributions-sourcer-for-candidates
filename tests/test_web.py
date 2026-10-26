@@ -61,6 +61,19 @@ class ArgvTests(unittest.TestCase):
         with self.assertRaises(web.BadRequest):
             web.search_argv({"role": "ai", "limit": "lots"}, self.roles)
 
+    def test_custom_role_written_to_a_file(self):
+        role = dict(self.roles["ai"], label="Inference Engineer")
+        argv = web.search_argv({"custom_role": role, "limit": "20"}, {})
+        role_arg = next(a for a in argv if a.startswith("--role-file="))
+        saved = json.loads(Path(role_arg.split("=", 1)[1]).read_text())
+        self.assertEqual((saved["label"], saved["key"]), ("Inference Engineer", "jd-inference-engineer"))
+        self.assertTrue(role_arg.split("=", 1)[1].startswith(str(Path(self.tmp.name, ".roles"))))
+        self.assertIsNone(web.run_path(".roles"))
+        with self.assertRaises(web.BadRequest):
+            web.search_argv({"custom_role": {"label": "x"}}, {})
+        with self.assertRaises(web.BadRequest):
+            web.search_argv({"custom_role": "not a dict"}, {})
+
     def test_run_path_blocks_traversal(self):
         make_run(self.tmp.name, "ai-20261024-1200")
         self.assertIsNotNone(web.run_path("ai-20261024-1200"))
@@ -123,6 +136,27 @@ class ServerTests(unittest.TestCase):
         status, data, _ = self.request("POST", "/api/search", {"role": "nope"}, {"X-Sourcer": "1"})
         self.assertEqual(status, 400)
         self.assertIn("Pick a role", json.loads(data)["error"])
+
+    def test_analyze_jd_without_github(self):
+        text = "Senior iOS Engineer\n\nRequirements\n- 5+ years of Swift and SwiftUI\n- Shipped consumer apps"
+        with mock.patch.object(web, "load_token", return_value=None):
+            status, data, _ = self.request("POST", "/api/jd", {"text": text}, {"X-Sourcer": "1"})
+        self.assertEqual(status, 200)
+        result = json.loads(data)
+        self.assertEqual(result["role"]["label"], "Senior iOS Engineer")
+        self.assertEqual(result["role"]["search_languages"][0], "Swift")
+        self.assertFalse(result["github"])
+        status, data, _ = self.request("POST", "/api/jd", {"text": ""}, {"X-Sourcer": "1"})
+        self.assertEqual(status, 400)
+
+    def test_save_preset(self):
+        with mock.patch.object(web, "save_role", return_value="jd-ios") as save:
+            status, data, _ = self.request("POST", "/api/roles", {"key": "jd-ios", "role": {"label": "iOS"}}, {"X-Sourcer": "1"})
+        self.assertEqual((status, json.loads(data)), (201, {"key": "jd-ios"}))
+        save.assert_called_once_with("jd-ios", {"label": "iOS"})
+        with mock.patch.object(web, "save_role", side_effect=ValueError("There's already a role called jd-ios.")):
+            status, data, _ = self.request("POST", "/api/roles", {"key": "jd-ios", "role": {}}, {"X-Sourcer": "1"})
+        self.assertEqual(status, 400)
 
     def test_bad_token_shape_rejected_without_calling_github(self):
         status, data, _ = self.request("POST", "/api/token", {"token": "hello"}, {"X-Sourcer": "1"})

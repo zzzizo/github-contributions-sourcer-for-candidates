@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
-from sourcer import cli, discover, enrich, report
+from sourcer import cli, discover, enrich, jd, report
 from sourcer.cli import load_roles, read_excludes, role_problems
 from sourcer.enrich import JUNK_EMAIL, normalize
 from sourcer.github import AuthError, GitHub, GitHubError, _seconds_until
@@ -78,7 +78,7 @@ class ScoreTests(unittest.TestCase):
 
     def test_strong_profile_scores_tier_a_with_reasons(self):
         profile = normalize(raw_user())
-        self.assertEqual([r["name"] for r in profile["contributed"]], ["vllm-project/vllm", "pytorch/pytorch"])
+        self.assertEqual([r["name"] for r in profile["contributed"]], ["pytorch/pytorch", "vllm-project/vllm"])
         result = score(profile, self.role, {"vllm-project/vllm": 240}, NOW)
         self.assertEqual(result["tier"], "A")
         self.assertEqual(result["seed_contribs"], {"vllm-project/vllm": 240})
@@ -235,9 +235,35 @@ class RobustnessTests(unittest.TestCase):
                 return {f"u{i}": raw_user(login=login, url=f"https://github.com/{login}") for i, login in logins}
 
         names = [f"dev{i}" for i in range(8)]
-        profiles = enrich.enrich(Flaky(), names, batch_size=8, workers=1, now=NOW)
-        self.assertEqual([p["login"] for p in profiles], names)
+        users = enrich.add_work(Flaky(), [{"login": n} for n in names], batch_size=8, workers=1)
+        self.assertEqual([u["login"] for u in users], names)
+        self.assertTrue(all(u["repositories"]["nodes"] for u in users))
         self.assertEqual(Flaky.calls, 7)  # 8 -> 4+4 -> 2+2+2+2, instead of 1 + 8 single calls
+
+    def test_heavy_single_user_falls_back_to_repos_only(self):
+        class Heavy:
+            def graphql(self, query, variables=None):
+                if "contributionsCollection" in query:
+                    raise GitHubError("502")
+                return {"u0": {"login": "big", "repositories": {"totalCount": 0, "nodes": []}}}
+
+        users = enrich.add_work(Heavy(), [{"login": "big", "name": "Big"}], batch_size=2, workers=1)
+        self.assertEqual(users[0]["name"], "Big")
+        self.assertIn("repositories", users[0])
+
+    def test_commit_counts_and_calendar(self):
+        days = [{"date": "2026-10-01", "contributionCount": 7}, {"date": "2026-01-01", "contributionCount": 50}]
+        user = raw_user(contributionsCollection={
+            "commitContributionsByRepository": [
+                {"repository": {"nameWithOwner": "vllm-project/vllm", "stargazerCount": 60000}, "contributions": {"totalCount": 42}},
+                {"repository": {"nameWithOwner": "ada/fastinfer", "stargazerCount": 4200}, "contributions": {"totalCount": 9}}],
+            "contributionCalendar": {"totalContributions": 57, "weeks": [{"contributionDays": days}]}})
+        del user["repositoriesContributedTo"], user["year"], user["recent"]
+        profile = normalize(user, NOW)
+        self.assertEqual((profile["contrib_year"], profile["contrib_90d"]), (57, 7))
+        self.assertEqual(profile["contributed"], [{"name": "vllm-project/vllm", "stars": 60000, "commits": 42}])
+        result = score(profile, load_roles()["ai"], {}, NOW)
+        self.assertEqual(result["seed_contribs"], {"vllm-project/vllm": 42})
 
     def test_retry_after_formats(self):
         self.assertEqual(_seconds_until("30"), 30)
@@ -295,6 +321,128 @@ class ClientTests(unittest.TestCase):
         self.assertFalse(old.exists())
 
 
+JD = """Senior Backend Engineer (Go) - Acme Pay | London (Hybrid)
+
+About Acme
+We're a Series A fintech. Our customers include Stripe and Shopify, and our offices are in Berlin.
+
+What you'll do
+- Build highly available payment APIs and ledger services in Go
+- Own our Kafka event pipelines end to end
+
+Requirements
+- 5+ years of backend experience with Go
+- Strong PostgreSQL skills
+- Ex-Google or Stripe engineers are a plus
+
+Nice to have
+- Kubernetes and Terraform
+
+We are not looking for frontend engineers. We don't need React experience.
+
+Benefits
+- Offices in San Francisco and New York
+- Visa sponsorship is not available.
+"""
+
+
+class JobDescriptionTests(unittest.TestCase):
+    def test_reads_the_jd(self):
+        result = jd.analyze(JD)
+        role, a = result["role"], result["analysis"]
+        self.assertEqual(role["label"], "Senior Backend Engineer (Go)")  # company and location dropped
+        self.assertEqual(result["key"], "jd-senior-backend-engineer-go")
+        must = {s["name"] for s in a["skills"] if s["must"]}
+        nice = {s["name"] for s in a["skills"] if not s["must"]}
+        self.assertTrue({"Backend", "Payments", "Streaming", "PostgreSQL"} <= must, must)
+        self.assertIn("Kubernetes", nice)
+        self.assertFalse({"React", "Frontend"} & (must | nice))  # "not looking for" lines don't count
+        self.assertEqual(role["search_languages"][0], "Go")
+        self.assertEqual(a["location"], "london")  # Berlin (about) and SF/NY (benefits) are ignored
+        self.assertTrue(a["onsite"])
+        self.assertFalse(a["visa"])
+        self.assertIn("senior", a["levels"])
+        self.assertEqual(a["years"], 5)
+        self.assertIn("google", a["companies"])
+        self.assertNotIn("shopify", a["companies"])  # a customer, not a candidate signal
+        self.assertEqual(role_problems(role), [])
+        reqs = {r["name"]: r for r in role["requirements"]}
+        self.assertEqual(reqs["Payments"]["languages"], [])  # writing Go isn't evidence of payments work
+        self.assertTrue(reqs["Go"]["must"])
+        self.assertFalse(any("&" in k or " / " in k for k in role["keywords"]))  # no "SRE & observability"
+        self.assertEqual(jd.analyze("iOS Engineer\n\nRequirements\n- Shipped iOS apps")["role"]["requirements"][0]
+                         ["languages"], ["Swift"])
+        self.assertLessEqual(len(role["seed_repos"]), 15)
+        self.assertGreater(role["weights"]["impact"], 0)
+
+    def test_paragraph_jd_and_rejection_criteria(self):
+        result = jd.analyze("Smart Contract Engineer\nRemote\n\nYou'll build our lending protocol. You should have "
+                            "shipped production Solidity and know Foundry inside out.\n\nRejection criteria\n"
+                            "- Only Python data science experience")
+        a = result["analysis"]
+        self.assertIn("Smart contracts", [s["name"] for s in a["skills"] if s["must"]])
+        self.assertNotIn("Data science", [s["name"] for s in a["skills"]])
+        self.assertEqual(a["location"], "")  # remote: search everywhere
+        self.assertEqual(result["role"]["search_languages"][0], "Solidity")
+
+    def test_rejects_empty_or_non_technical_text(self):
+        with self.assertRaises(ValueError):
+            jd.analyze("hi")
+        with self.assertRaises(ValueError):
+            jd.analyze("We are a friendly bakery looking for a cheerful person to bake bread every morning.")
+
+    def test_github_refinement(self):
+        class Repos:
+            def graphql(self, query, variables=None):
+                if variables:  # repository search
+                    return {"search": {"nodes": [
+                        {"nameWithOwner": "someone/awesome-go", "stargazerCount": 90000, "description": "A curated list"},
+                        {"nameWithOwner": "go-kratos/kratos", "stargazerCount": 24000, "description": "Go framework",
+                         "primaryLanguage": {"name": "Go"}}]}}
+                out = {}
+                for alias, owner, name in re.findall(r'(r\d+): repository\(owner: "([^"]+)", name: "([^"]+)"\)', query):
+                    archived = f"{owner}/{name}" == "apache/kafka"
+                    out[alias] = None if name == "pulsar" else {
+                        "nameWithOwner": f"{owner}/{name}", "stargazerCount": 1000, "isArchived": archived,
+                        "pushedAt": "2026-10-01T00:00:00Z", "primaryLanguage": {"name": "Go"}}
+                return out
+
+        result = jd.refine_with_github(Repos(), jd.analyze(JD), now=NOW)
+        seeds = result["role"]["seed_repos"]
+        self.assertNotIn("apache/kafka", seeds)    # archived
+        self.assertNotIn("apache/pulsar", seeds)   # gone
+        self.assertNotIn("someone/awesome-go", seeds)
+        self.assertIn("go-kratos/kratos", seeds)
+        info = {i["repo"]: i for i in result["analysis"]["seed_info"]}
+        self.assertEqual(info["go-kratos/kratos"]["source"], "github")
+
+    def test_requirements_feed_the_score(self):
+        role = jd.analyze(JD)["role"]
+        go_dev = normalize(raw_user(bio="Backend engineer, payments and Kafka", repositories={"totalCount": 1, "nodes": [
+            {"nameWithOwner": "ada/ledger", "stargazerCount": 900, "pushedAt": "2026-10-01T00:00:00Z",
+             "description": "Double-entry ledger in Go", "primaryLanguage": {"name": "Go"},
+             "repositoryTopics": {"nodes": [{"topic": {"name": "payments"}}]}}]}))
+        result = score(go_dev, role, {}, NOW)
+        first = result["reasons"][0]
+        self.assertTrue(first.startswith("Matches the JD: "), first)
+        self.assertIn("Payments", first)
+        self.assertIn("Backend", first)
+
+    def test_save_role_appends_without_rewriting(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(cli, "ROOT", Path(d)):
+            original = Path(__file__).resolve().parent.parent.joinpath("roles.json").read_text()
+            Path(d, "roles.json").write_text(original)
+            role = jd.analyze(JD)["role"]
+            self.assertEqual(cli.save_role("jd-go-backend", role), "jd-go-backend")
+            text = Path(d, "roles.json").read_text()
+            self.assertTrue(text.startswith(original.rstrip()[:-1].rstrip()))  # existing entries untouched
+            self.assertEqual(cli.load_roles()["jd-go-backend"]["label"], role["label"])
+            with self.assertRaises(ValueError):
+                cli.save_role("jd-go-backend", role)  # duplicate
+            with self.assertRaises(ValueError):
+                cli.save_role("Bad Key!", role)
+
+
 class FakeGitHub:
     """Serves the three discovery calls and batched enrichment from fixtures."""
 
@@ -324,6 +472,8 @@ class FakeGitHub:
         if "type: REPOSITORY" in query:
             return {"search": {"nodes": [{"nameWithOwner": "ada/fastinfer", "stargazerCount": 4200,
                                           "owner": {"__typename": "User", "login": "ada"}}]}}
+        if "repository(owner:" in query:
+            return {}
         logins = re.findall(r'u(\d+): user\(login: "([^"]+)"\)', query)
         return {f"u{i}": self.people.get(login) for i, login in logins}
 
@@ -347,6 +497,29 @@ class PipelineTests(unittest.TestCase):
             cli.main(["search", "ai", "--out", d])
             cli.main(["search", "ai", "--out", d])
             self.assertEqual(len(list(Path(d).iterdir())), 2)
+
+    def test_search_from_jd_and_role_file(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.object(cli, "client", return_value=FakeGitHub()), \
+                mock.patch("sys.stdout", new_callable=io.StringIO), mock.patch("sys.stderr", new_callable=io.StringIO):
+            Path(d, "jd.txt").write_text("ML Inference Engineer\n\nRequirements\n- Deep experience with LLM inference, "
+                                         "vLLM and CUDA\n- Strong Python")
+            cli.main(["search", "--jd", str(Path(d, "jd.txt")), "--out", str(Path(d, "out"))])
+            run = next(Path(d, "out").iterdir())
+            self.assertTrue(run.name.startswith("jd-ml-inference-engineer"))
+            meta = json.loads((run / "candidates.json").read_text())["meta"]
+            self.assertEqual(meta["role_label"], "ML Inference Engineer")
+            self.assertIn("LLM inference", [r["name"] for r in meta["requirements"]])
+
+            role = dict(load_roles()["ai"], key="custom-ai")
+            Path(d, "role.json").write_text(json.dumps(role))
+            cli.main(["search", "--role-file", str(Path(d, "role.json")), "--out", str(Path(d, "out2"))])
+            self.assertTrue(next(Path(d, "out2").iterdir()).name.startswith("custom-ai"))
+
+    def test_role_sources_are_exclusive(self):
+        with self.assertRaises(SystemExit):
+            cli.main(["search"])
+        with self.assertRaises(SystemExit):
+            cli.main(["search", "ai", "--role-file", "x.json"])
 
     def test_bad_arguments_rejected(self):
         with mock.patch("sys.stderr", new_callable=io.StringIO), self.assertRaises(SystemExit):
