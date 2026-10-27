@@ -90,6 +90,13 @@ class LocationTests(unittest.TestCase):
         self.assertEqual((where["match"], where["places"][0]["input"]), (["smalltown"], "Smalltown, Germany"))
         self.assertEqual(len(places.resolve("london, sf")["places"]), 2)  # two cities: either one
 
+    def test_suggestions_while_typing(self):
+        self.assertEqual(places.suggest("russ")[0]["name"], "Russia")
+        self.assertIn("Moscow", places.suggest("russ")[0]["covers"])
+        self.assertEqual(places.suggest("bangalore")[0]["name"], "Bengaluru")
+        self.assertEqual(places.suggest("peters")[0]["name"], "Saint Petersburg")
+        self.assertEqual(places.suggest("r"), [])
+
     def test_unknown_short_and_anywhere(self):
         where = places.resolve("anywhere, x, Atlantis")
         self.assertEqual(where["match"], ["atlantis"])

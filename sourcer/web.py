@@ -337,10 +337,12 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["api", "runs"]:
             return self._json(list_runs())
         if parts == ["api", "places"]:
-            where = places.resolve((query.get("q") or [""])[0][:500])
+            text = (query.get("q") or [""])[0][:500]
+            where = places.resolve(text)
             return self._json({"places": [{k: p[k] for k in ("input", "name", "kind", "known", "covers", "count")}
                                           for p in where["places"]],
-                               "search": where["search"], "notes": where["notes"]})
+                               "search": where["search"], "notes": where["notes"],
+                               "suggest": places.suggest(text.split(",")[-1])})
         if len(parts) == 3 and parts[:2] == ["api", "runs"]:
             path = run_path(parts[2])
             if not path:

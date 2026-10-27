@@ -130,6 +130,8 @@ class ServerTests(unittest.TestCase):
         self.assertEqual([p["known"] for p in data["places"]], [True, True, False])
         self.assertIn("São Paulo", data["places"][1]["covers"])
         self.assertEqual(data["search"][:2], ["austin", "brazil"])
+        data = json.loads(self.request("GET", "/api/places?q=sf%2C%20russ")[1])
+        self.assertEqual(data["suggest"][0]["name"], "Russia")  # for the part being typed
 
     def test_foreign_host_rejected(self):
         # DNS rebinding: a page on evil.example resolving to 127.0.0.1 still sends its own Host header.

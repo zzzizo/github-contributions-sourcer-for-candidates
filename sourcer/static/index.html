@@ -78,6 +78,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .role[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .role b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
 .role span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.loc-wrap { position: relative; }
+.loc-suggest { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 4px); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); padding: 4px; max-height: 280px; overflow-y: auto; }
+.loc-option { display: block; width: 100%; text-align: left; border: 0; background: none; border-radius: 7px; padding: 7px 10px;
+  cursor: pointer; color: var(--ink); font: inherit; }
+.loc-option[aria-selected="true"], .loc-option:hover { background: var(--accent-soft); }
+.loc-option b { font-weight: 600; font-size: 13.5px; }
+.loc-option .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); margin-left: 6px; }
+.loc-option span.sub { display: block; font-size: 12px; color: var(--muted); margin-top: 1px; }
 .loc-preview { font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
 .loc-preview:empty { display: none; }
 .loc-preview div + div { margin-top: 3px; }
@@ -353,7 +362,11 @@ select.input { width: auto; padding-right: 30px; }
       <div class="section">
         <div class="field">
           <label class="label" for="f-location">Location</label>
-          <input id="f-location" data-field="location" class="input" placeholder="Anywhere — or any city, country or region">
+          <div class="loc-wrap">
+            <input id="f-location" data-field="location" class="input" placeholder="Anywhere — or any city, country or region"
+                   autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="loc-suggest" aria-expanded="false">
+            <div id="loc-suggest" class="loc-suggest hidden" role="listbox"></div>
+          </div>
           <div id="loc-chips" class="chips"></div>
           <div id="loc-preview" class="loc-preview" aria-live="polite"></div>
         </div>
@@ -690,10 +703,14 @@ function previewLocation() {
     const q = $("#f-location").value.trim();
     if (q === locAsked) return;
     locAsked = q;
-    if (!q) { $("#loc-preview").innerHTML = ""; return; }
+    if (!q) { $("#loc-preview").innerHTML = ""; showSuggestions([]); return; }
     let d;
     try { d = await api("/api/places?q=" + encodeURIComponent(q)); } catch { return; }
     if (q !== $("#f-location").value.trim()) return;  // typed on while we waited
+    const last = q.split(",").pop().trim().toLowerCase();
+    // Nothing to offer once the last part is already exactly one of the suggestions.
+    showSuggestions(document.activeElement === $("#f-location") && !(d.suggest.length === 1 && d.suggest[0].name.toLowerCase() === last)
+      ? d.suggest : []);
     const rows = d.places.map(p => {
       if (!p.known) return `<div><b>${esc(p.input)}</b> <span class="kind">as written</span> · profiles that say “${esc(p.name)}”</div>`;
       const label = p.kind === "city" && p.input.toLowerCase() !== p.name.toLowerCase() ? `${p.name} (${p.input})` : p.name;
@@ -703,8 +720,55 @@ function previewLocation() {
     rows.push(...d.notes.filter(n => !/isn't in the built-in places/.test(n)).map(n => `<div class="warn">${esc(n)}</div>`));
     if (d.search.length) rows.push(`<div>Searches GitHub in: ${d.search.map(esc).join(", ")}</div>`);
     $("#loc-preview").innerHTML = rows.join("");
-  }, 250);
+  }, 200);
 }
+
+// Suggestions for the part being typed: pick one with a click, the arrow keys and Enter, or Tab.
+let suggestions = [], suggestAt = -1;
+function showSuggestions(list) {
+  suggestions = list; suggestAt = list.length ? 0 : -1;
+  const box = $("#loc-suggest");
+  box.innerHTML = list.map((s, i) => {
+    const sub = [s.typed ? `also “${s.typed}”` : "", s.covers.length ? s.covers.join(", ") + (s.covers.length === 3 ? "…" : "") : ""]
+      .filter(Boolean).join(" · ");
+    return `<button type="button" class="loc-option" role="option" id="loc-opt-${i}" data-pick="${i}" tabindex="-1"
+      aria-selected="${i === suggestAt}"><b>${esc(s.name)}</b><span class="kind">${esc(KIND[s.kind] || s.kind)}</span>${sub ? `<span class="sub">${esc(sub)}</span>` : ""}</button>`;
+  }).join("");
+  box.classList.toggle("hidden", !list.length);
+  $("#f-location").setAttribute("aria-expanded", String(!!list.length));
+}
+function highlightSuggestion(i) {
+  suggestAt = (i + suggestions.length) % suggestions.length;
+  $$("#loc-suggest .loc-option").forEach((el, j) => el.setAttribute("aria-selected", String(j === suggestAt)));
+  const el = $(`#loc-opt-${suggestAt}`);
+  if (el) el.scrollIntoView({ block: "nearest" });
+}
+function pickSuggestion(i) {
+  const s = suggestions[i];
+  if (!s) return;
+  const input = $("#f-location");
+  const parts = input.value.split(",").map(p => p.trim());
+  parts[parts.length - 1] = s.name;
+  input.value = parts.filter(Boolean).join(", ");
+  showSuggestions([]);
+  renderLocChips(); previewLocation(); saveForm();
+  input.focus();
+}
+$("#loc-suggest").addEventListener("mousedown", e => {
+  const btn = e.target.closest("[data-pick]");
+  if (!btn) return;
+  e.preventDefault();  // keep focus in the box
+  pickSuggestion(+btn.dataset.pick);
+});
+$("#f-location").addEventListener("keydown", e => {
+  if (!suggestions.length) return;
+  if (e.key === "ArrowDown") { e.preventDefault(); highlightSuggestion(suggestAt + 1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); highlightSuggestion(suggestAt - 1); }
+  else if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) { e.preventDefault(); pickSuggestion(suggestAt); }
+  else if (e.key === "Escape") { e.preventDefault(); showSuggestions([]); }
+});
+$("#f-location").addEventListener("blur", () => setTimeout(() => showSuggestions([]), 100));
+$("#f-location").addEventListener("focus", () => { locAsked = null; previewLocation(); });
 
 const range = $("#f-limit-range"), limit = $("#f-limit");
 range.addEventListener("input", () => { limit.value = range.value; saveForm(); });

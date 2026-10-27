@@ -549,6 +549,33 @@ def resolve(raw):
     return {"places": places, "match": match, "search": search, "notes": notes}
 
 
+KIND_ORDER = {"country": 0, "region": 1, "state": 2, "metro": 3, "city": 4, "remote": 5}
+
+
+def suggest(text, limit=8):
+    """Places whose name or other name starts with what's typed, for the location box's suggestion list."""
+    q = norm(text)
+    if len(q) < 2:
+        return []
+    best = {}
+    for key, place in LOOKUP.items():
+        if key == q:
+            rank = 0
+        elif key.startswith(q):
+            rank = 1
+        elif f" {q}" in f" {key}":
+            rank = 2  # a later word: "petersburg" finds Saint Petersburg
+        else:
+            continue
+        typed = key if norm(place.name) != key else ""
+        if place.name not in best or rank < best[place.name][0]:
+            best[place.name] = (rank, place, typed)
+    ranked = sorted(best.values(), key=lambda r: (r[0], bool(r[2]), KIND_ORDER.get(r[1].kind, 9), len(r[1].name),
+                                                 r[1].name))
+    return [{"name": place.name, "kind": place.kind, "typed": typed, "covers": cities(place, 3)}
+            for _, place, typed in ranked[:limit]]
+
+
 @lru_cache(maxsize=64)
 def _pattern(terms):
     alternatives = "|".join(re.escape(t) for t in sorted(terms, key=len, reverse=True))
