@@ -11,6 +11,7 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 
+from . import places
 from .github import GitHubError, log
 from .score import DEFAULT_WEIGHTS
 
@@ -482,6 +483,10 @@ LOCATIONS = [
     ("amsterdam", r"amsterdam"), ("zurich", r"zurich|zürich"), ("tel aviv", r"tel aviv"), ("denver", r"\bdenver\b"),
     ("usa", r"united states|\busa\b|\bus-based\b|\bu\.s\.(?:a\.)?"),
 ]
+# A line that says where the job is, so any place named on it (not only the ones above) counts.
+PLACE_CUE = re.compile(r"^location|\blocations?\s*[:\-–—]|based in|located in|offices? in|\bhq\b|headquarter|"
+                       r"in[- ]person|on[- ]?site|\bhybrid\b|relocat|\bremote\b.*\b(?:in|within|from|across)\b|"
+                       r"\bremote\s*[(\-–—:]", re.I)
 
 # Section headings, checked in order; the weight is how much a skill mentioned under that heading counts.
 SECTIONS = [
@@ -663,6 +668,10 @@ def find_location(lines):
         place = "\n".join(chunk)
         low = place.lower()
         found = [key for key, pattern in LOCATIONS if re.search(pattern, low)]
+        if not found:
+            # Anywhere else in the world, from lines that say where the job is ("Location: Lisbon", "based in Lagos").
+            found = list(dict.fromkeys(name for line in chunk if PLACE_CUE.search(line)
+                                       for name in places.find_in_text(line)))
         if found:
             break
     place = "\n".join(role_lines + about_lines)

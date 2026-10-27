@@ -124,6 +124,13 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.request("GET", "/runs/..%2F..%2Fetc/candidates.csv")[0], 404)
         self.assertEqual(self.request("GET", "/runs/ai-london-20261024-1200/secret.txt")[0], 404)
 
+    def test_places_preview(self):
+        data = json.loads(self.request("GET", "/api/places?q=Austin%2C%20TX%2C%20Brazil%2C%20Atlantis")[1])
+        self.assertEqual([p["input"] for p in data["places"]], ["Austin, TX", "Brazil", "Atlantis"])
+        self.assertEqual([p["known"] for p in data["places"]], [True, True, False])
+        self.assertIn("São Paulo", data["places"][1]["covers"])
+        self.assertEqual(data["search"][:2], ["austin", "brazil"])
+
     def test_foreign_host_rejected(self):
         # DNS rebinding: a page on evil.example resolving to 127.0.0.1 still sends its own Host header.
         self.assertEqual(self.request("GET", "/api/runs", headers={"Host": "evil.example:8765"})[0], 403)

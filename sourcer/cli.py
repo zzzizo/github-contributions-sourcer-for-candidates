@@ -8,7 +8,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import discover, enrich, jd, report
+from . import discover, enrich, jd, places, report
 from .github import ROOT, AuthError, GitHub, GitHubError, load_token, log
 from .score import DEFAULT_WEIGHTS, SENIORITY, fmt, log_scale, score, word_hits
 
@@ -262,14 +262,22 @@ def cmd_search(args):
         role["seed_repos"] = role["seed_repos"] + split(args.repos)
     if args.languages:
         role["search_languages"] = split(args.languages)
-    match_terms, search_terms = discover.expand_locations(args.location)
+    where = places.resolve(args.location)
+    match_terms, search_terms = where["match"], where["search"]
     min_followers = args.min_followers if args.min_followers is not None else role.get("min_followers", 30)
     excluded = read_excludes(args.exclude)
     gh = gh or client(args)
     preflight(gh)
     now = datetime.now(timezone.utc)
 
-    log(f"\n▶ {role['label']}" + (f" in {args.location}" if args.location else "") + "\n\nDiscovering…")
+    log(f"\n▶ {role['label']}" + (f" in {args.location}" if args.location else ""))
+    if where["places"]:
+        log(f"  location: {places.describe(where)}\n  searching GitHub in: {', '.join(search_terms)}")
+    for note in where["notes"]:
+        log(f"  note: {note}")
+    if args.location and not match_terms:
+        log("  no usable location left, so searching everywhere")
+    log("\nDiscovering…")
     pool = discover.Pool()
     if not args.skip_contributors:
         discover.from_seed_repos(gh, pool, role["seed_repos"], args.seed_pages)
@@ -400,7 +408,8 @@ def main(argv=None):
     s.add_argument("role", nargs="?", help="role preset from roles.json (e.g. ai, founding, backend, web3, quantum)")
     s.add_argument("--jd", metavar="FILE", help="build the search from a job description in a text file instead")
     s.add_argument("--role-file", metavar="FILE", help="use a role saved as JSON instead of a preset")
-    s.add_argument("-l", "--location", help='comma-separated, e.g. "sf, london" (shorthands: sf, nyc, uk, europe, india…)')
+    s.add_argument("-l", "--location", help='any cities, states, countries or regions, comma-separated, '
+                                            'e.g. "sf, london", "Brazil", "LATAM" or "Austin, TX"')
     s.add_argument("-n", "--limit", type=int_at_least(1), default=50, help="candidates in the final report (default 50)")
     s.add_argument("--repos", help="extra seed repos, comma-separated owner/name")
     s.add_argument("--languages", help="override languages used for user search, comma-separated")

@@ -1,48 +1,17 @@
 """Candidate discovery: seed-repo contributors, user search, and popular-project owners."""
 
-import re
-
+from . import places
 from .github import GitHubError, log
-
-# Shorthands a recruiter is likely to type, expanded to the strings people put in their profiles.
-LOCATION_ALIASES = {
-    "sf": ["san francisco", "sf", "bay area", "palo alto", "mountain view", "berkeley", "oakland", "san jose", "menlo park"],
-    "bay area": ["san francisco", "sf", "bay area", "palo alto", "mountain view", "berkeley", "oakland", "san jose", "menlo park"],
-    "nyc": ["new york", "nyc", "brooklyn", "manhattan"],
-    "new york": ["new york", "nyc", "brooklyn", "manhattan"],
-    "london": ["london"],
-    "uk": ["united kingdom", "uk", "england", "london", "manchester", "cambridge", "oxford", "edinburgh", "scotland", "bristol"],
-    "usa": ["united states", "usa", "us", "san francisco", "new york", "seattle", "boston", "austin", "los angeles", "chicago"],
-    "us": ["united states", "usa", "us", "san francisco", "new york", "seattle", "boston", "austin", "los angeles", "chicago"],
-    "germany": ["germany", "deutschland", "berlin", "munich", "münchen", "hamburg"],
-    "europe": ["europe", "london", "berlin", "paris", "amsterdam", "zurich", "zürich", "munich", "lisbon", "barcelona",
-               "madrid", "stockholm", "dublin", "warsaw", "prague", "vienna", "copenhagen"],
-    "india": ["india", "bangalore", "bengaluru", "hyderabad", "pune", "mumbai", "delhi", "chennai", "gurgaon", "noida"],
-    "dubai": ["dubai", "uae", "united arab emirates", "abu dhabi"],
-    "singapore": ["singapore"],
-    "remote": ["remote"],
-}
 
 
 def expand_locations(raw):
-    """'sf, london' -> (match terms, search terms). Search terms are one canonical name per entry."""
-    match_terms, search_terms = [], []
-    for part in (raw or "").split(","):
-        key = part.strip().lower()
-        if not key:
-            continue
-        aliases = LOCATION_ALIASES.get(key, [key])
-        match_terms.extend(aliases)
-        search_terms.append(aliases[0])
-    return list(dict.fromkeys(match_terms)), list(dict.fromkeys(search_terms))
+    """'sf, london' -> (match terms, search terms). Any city, state, country or region works; see places.py."""
+    resolved = places.resolve(raw)
+    return resolved["match"], resolved["search"]
 
 
 def location_matches(location, terms):
-    if not terms:
-        return True
-    text = (location or "").lower()
-    # Letter boundaries so "uk" doesn't match "ukraine" and "sf" doesn't match "sfax".
-    return any(re.search(rf"(?<![a-z]){re.escape(t)}(?![a-z])", text) for t in terms)
+    return places.matches(location, terms)
 
 
 def is_bot(login):

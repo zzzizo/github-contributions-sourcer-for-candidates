@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
-from sourcer import cli, discover, enrich, jd, report
+from sourcer import cli, discover, enrich, jd, places, report
 from sourcer.cli import load_roles, read_excludes, role_problems
 from sourcer.enrich import JUNK_EMAIL, normalize
 from sourcer.github import AuthError, GitHub, GitHubError, _seconds_until
@@ -48,7 +48,7 @@ def raw_user(**overrides):
 class LocationTests(unittest.TestCase):
     def test_aliases_and_boundaries(self):
         terms, search = discover.expand_locations("sf, uk")
-        self.assertEqual(search, ["san francisco", "united kingdom"])
+        self.assertEqual(search, ["san francisco", "united kingdom", "bay area", "london"])  # each place first
         self.assertTrue(discover.location_matches("Palo Alto, CA", terms))
         self.assertTrue(discover.location_matches("London, UK", terms))
         self.assertFalse(discover.location_matches("Kyiv, Ukraine", terms))
@@ -58,6 +58,44 @@ class LocationTests(unittest.TestCase):
     def test_custom_location_passes_through(self):
         terms, search = discover.expand_locations("Toronto")
         self.assertEqual((terms, search), (["toronto"], ["toronto"]))
+
+    def test_countries_and_regions_cover_their_cities(self):
+        brazil = places.resolve("Brazil")["match"]
+        for location in ["São Paulo, Brasil", "Sao Paulo", "Florianópolis - SC", "brazil"]:
+            self.assertTrue(places.matches(location, brazil), location)
+        self.assertFalse(places.matches("Lisbon, Portugal", brazil))
+        latam = places.resolve("latam")["match"]
+        self.assertTrue(places.matches("Bogotá, Colombia", latam))
+        self.assertTrue(places.matches("Ciudad de México", latam))
+        self.assertTrue(places.matches("Gdańsk", places.resolve("poland")["match"]))
+        self.assertTrue(places.matches("Łódź", places.resolve("Lodz")["match"]))
+        self.assertTrue(places.matches("Bangalore, India", places.resolve("Bengaluru")["match"]))
+
+    def test_states_match_postal_codes_but_not_ambiguous_ones(self):
+        texas = places.resolve("texas")["match"]
+        self.assertTrue(places.matches("Austin, TX", texas))
+        self.assertTrue(places.matches("Houston, Texas, USA", texas))
+        usa = places.resolve("USA")["match"]
+        for location in ["Boston, MA", "Brooklyn", "Seattle", "Washington, D.C."]:
+            self.assertTrue(places.matches(location, usa), location)
+        for location in ["Berlin, DE", "Bogotá, CO", "La Paz, Bolivia", "Toronto, ON, CA", "Kyiv, Ukraine"]:
+            self.assertFalse(places.matches(location, usa), location)
+
+    def test_state_or_country_after_a_place_narrows_it(self):
+        for raw in ["Austin, TX", "Austin, Texas, USA"]:
+            where = places.resolve(raw)
+            self.assertEqual((len(where["places"]), where["match"], where["search"]), (1, ["austin"], ["austin"]))
+        self.assertEqual(places.resolve("sf, usa")["places"][0]["name"], "SF Bay Area")
+        where = places.resolve("Smalltown, Germany")
+        self.assertEqual((where["match"], where["places"][0]["input"]), (["smalltown"], "Smalltown, Germany"))
+        self.assertEqual(len(places.resolve("london, sf")["places"]), 2)  # two cities: either one
+
+    def test_unknown_short_and_anywhere(self):
+        where = places.resolve("anywhere, x, Atlantis")
+        self.assertEqual(where["match"], ["atlantis"])
+        self.assertEqual(len(where["notes"]), 3)
+        self.assertEqual(places.resolve("worldwide")["match"], [])
+        self.assertLessEqual(len(places.resolve("europe, latam, apac, emea, nyc")["search"]), places.MAX_SEARCH_TERMS)
 
 
 class PoolTests(unittest.TestCase):
@@ -374,6 +412,15 @@ class JobDescriptionTests(unittest.TestCase):
                          ["languages"], ["Swift"])
         self.assertLessEqual(len(role["seed_repos"]), 15)
         self.assertGreater(role["weights"]["impact"], 0)
+
+    def test_location_anywhere_in_the_world(self):
+        result = jd.analyze("Backend Engineer\nLocation: Lisbon, Portugal (hybrid)\n\nRequirements\n- Go and Kafka")
+        self.assertEqual(result["analysis"]["location"], "lisbon, portugal")
+        self.assertEqual(places.resolve("lisbon, portugal")["match"], ["lisbon", "lisboa"])
+        result = jd.analyze("Backend Engineer\nFully remote within Brazil or Argentina.\n\nRequirements\n- Go, Kafka")
+        self.assertEqual(result["analysis"]["location"], "brazil, argentina")
+        result = jd.analyze("Elixir Engineer\n\nRequirements\n- Phoenix LiveView, remote-friendly team")
+        self.assertEqual(result["analysis"]["location"], "")
 
     def test_paragraph_jd_and_rejection_criteria(self):
         result = jd.analyze("Smart Contract Engineer\nRemote\n\nYou'll build our lending protocol. You should have "

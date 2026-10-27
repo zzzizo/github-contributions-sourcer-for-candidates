@@ -78,6 +78,12 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .role[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
 .role b { display: block; font-size: 13.5px; font-weight: 600; line-height: 1.3; }
 .role span { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.loc-preview { font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
+.loc-preview:empty { display: none; }
+.loc-preview div + div { margin-top: 3px; }
+.loc-preview b { color: var(--ink); font-weight: 600; }
+.loc-preview .kind { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--faint); margin-left: 4px; }
+.loc-preview .warn { color: var(--b); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; }
 .chip:hover { border-color: var(--faint); }
@@ -347,8 +353,9 @@ select.input { width: auto; padding-right: 30px; }
       <div class="section">
         <div class="field">
           <label class="label" for="f-location">Location</label>
-          <input id="f-location" data-field="location" class="input" placeholder="Anywhere — or e.g. sf, london">
+          <input id="f-location" data-field="location" class="input" placeholder="Anywhere — or any city, country or region">
           <div id="loc-chips" class="chips"></div>
+          <div id="loc-preview" class="loc-preview" aria-live="polite"></div>
         </div>
         <div class="field">
           <label class="label" for="f-limit">Candidates to keep</label>
@@ -670,9 +677,34 @@ $("#loc-chips").addEventListener("click", e => {
   let parts = locParts();
   parts = parts.some(p => p.toLowerCase() === key) ? parts.filter(p => p.toLowerCase() !== key) : [...parts, key];
   $("#f-location").value = parts.join(", ");
-  renderLocChips(); saveForm();
+  renderLocChips(); previewLocation(); saveForm();
 });
-$("#f-location").addEventListener("input", renderLocChips);
+$("#f-location").addEventListener("input", () => { renderLocChips(); previewLocation(); });
+
+// Shows how the tool reads the location box, so "Brazil" visibly covers São Paulo and "Austin, TX" stays Austin.
+const KIND = { region: "region", country: "country", state: "state", metro: "metro area", city: "city", remote: "" };
+let locTimer, locAsked = "";
+function previewLocation() {
+  clearTimeout(locTimer);
+  locTimer = setTimeout(async () => {
+    const q = $("#f-location").value.trim();
+    if (q === locAsked) return;
+    locAsked = q;
+    if (!q) { $("#loc-preview").innerHTML = ""; return; }
+    let d;
+    try { d = await api("/api/places?q=" + encodeURIComponent(q)); } catch { return; }
+    if (q !== $("#f-location").value.trim()) return;  // typed on while we waited
+    const rows = d.places.map(p => {
+      if (!p.known) return `<div><b>${esc(p.input)}</b> <span class="kind">as written</span> · profiles that say “${esc(p.name)}”</div>`;
+      const label = p.kind === "city" && p.input.toLowerCase() !== p.name.toLowerCase() ? `${p.name} (${p.input})` : p.name;
+      const covers = p.count ? " · " + p.covers.map(esc).join(", ") + (p.count > p.covers.length ? ` +${p.count - p.covers.length} more` : "") : "";
+      return `<div><b>${esc(label)}</b>${KIND[p.kind] ? ` <span class="kind">${KIND[p.kind]}</span>` : ""}${covers}</div>`;
+    });
+    rows.push(...d.notes.filter(n => !/isn't in the built-in places/.test(n)).map(n => `<div class="warn">${esc(n)}</div>`));
+    if (d.search.length) rows.push(`<div>Searches GitHub in: ${d.search.map(esc).join(", ")}</div>`);
+    $("#loc-preview").innerHTML = rows.join("");
+  }, 250);
+}
 
 const range = $("#f-limit-range"), limit = $("#f-limit");
 range.addEventListener("input", () => { limit.value = range.value; saveForm(); });
@@ -717,7 +749,7 @@ function restoreForm() {
     if (el.type === "checkbox") el.checked = !!v; else el.value = v;
   }
   range.value = Math.min(200, Math.max(10, +limit.value || 50));
-  renderLocChips();
+  renderLocChips(); previewLocation();
 }
 $("#form").addEventListener("input", saveForm);
 $("#form").addEventListener("change", saveForm);
@@ -809,7 +841,7 @@ $("#jd-analyze").addEventListener("click", async () => {
     saveJd();
     const loc = result.analysis.location;
     if (loc && $("#f-location").value.trim().toLowerCase() !== loc) {
-      $("#f-location").value = loc; renderLocChips(); saveForm();
+      $("#f-location").value = loc; renderLocChips(); previewLocation(); saveForm();
       toast(`Location set to “${loc}” from the JD`);
     }
     state.exclude.clear();

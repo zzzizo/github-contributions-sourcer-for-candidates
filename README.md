@@ -39,8 +39,8 @@ Your browser opens the app at `http://127.0.0.1:8765`. The first time, it asks f
 
 **5. Find candidates**
 
-Pick a role, optionally add a location (or click a chip like *SF Bay Area* or *Europe*), and press
-**Find candidates**. A search takes about 1–5 minutes. You'll see live progress, then a ranked shortlist you can:
+Pick a role, optionally type a location (any city, state, country or region, or click a chip like *SF Bay Area*),
+and press **Find candidates**. A search takes about 1–5 minutes. You'll see live progress, then a ranked shortlist you can:
 
 - filter by tier (A/B/C), text or "has email", and sort by score, followers, stars or recent activity
 - open each person's GitHub, website, X and LinkedIn
@@ -97,6 +97,22 @@ python3 source.py jd job.txt                        # show what it understood
 python3 source.py jd job.txt --save jd-ios-founder  # also save it as a preset
 python3 source.py search --jd job.txt -l sf         # search straight from the JD
 ```
+
+## Locations
+
+Type any place, several separated by commas. Under the box, the app shows how it read each one and where it will
+search:
+
+- **Countries, states and regions** cover the cities inside them. *Brazil* keeps people in "São Paulo" or
+  "Florianópolis - SC", *Texas* keeps "Austin, TX", and *LATAM*, *Europe*, *Nordics*, *DACH*, *APAC*, *EMEA*, *GCC* and
+  others cover their countries. Russia and Belarus are available on their own but aren't part of any region.
+- **Other spellings** work: *Bangalore* or *Bengaluru*, *Munich* or *München*, *Kyiv* or *Kiev*. Accents don't matter.
+- **A state or country after a place only says where it is**: *Austin, TX* means Austin, not all of Texas, and
+  *sf, usa* means the Bay Area.
+- **Anywhere else** still works: a town that isn't built in keeps people whose location mentions it.
+- *anywhere* or *worldwide* means no location filter.
+
+The places live in `sourcer/places.py`; add a line there to teach it a new one.
 
 ## LinkedIn
 
