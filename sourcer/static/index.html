@@ -96,6 +96,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .chip { border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 3px 10px; font-size: 12.5px; cursor: pointer; }
 .chip:hover { border-color: var(--faint); }
+.chip-saved { display: inline-flex; }
+.chip-saved .chip { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0; }
+.chip-x { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 0 999px 999px 0;
+  padding: 3px 8px 3px 6px; font-size: 12.5px; line-height: 1; cursor: pointer; }
+.chip-x:hover { color: var(--danger); border-color: var(--faint); }
 .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
 .row { display: flex; gap: 10px; align-items: center; }
 .row > * { flex: 1; min-width: 0; }
@@ -677,18 +682,45 @@ $("#roles").addEventListener("click", e => {
   updateRunButton();
 });
 
-function locParts() { return $("#f-location").value.split(",").map(s => s.trim()).filter(Boolean); }
+const splitLoc = text => String(text).split(",").map(s => s.trim()).filter(Boolean);
+function locParts() { return splitLoc($("#f-location").value); }
+// Where a chip's parts sit in the box: chips like "Austin, TX" span two comma-separated parts.
+function chipAt(parts, chip) {
+  const want = splitLoc(chip).map(s => s.toLowerCase()), have = parts.map(s => s.toLowerCase());
+  for (let i = 0; i + want.length <= have.length; i++) if (want.every((w, j) => have[i + j] === w)) return i;
+  return -1;
+}
+// Places from your own searches, kept in this browser as chips next to the built-in ones.
+const MAX_SAVED_LOCATIONS = 12;
+let savedLocations = store.get("savedLocations", []).filter(x => typeof x === "string");
+const isDefaultLocation = value => LOCATIONS.some(([key, label]) => [key, label.toLowerCase()].includes(value.toLowerCase()));
+function rememberLocations(values) {
+  const fresh = values.filter(v => v && !isDefaultLocation(v));
+  if (!fresh.length) return;
+  const seen = new Set(fresh.map(v => v.toLowerCase()));
+  savedLocations = [...fresh, ...savedLocations.filter(v => !seen.has(v.toLowerCase()))].slice(0, MAX_SAVED_LOCATIONS);
+  store.set("savedLocations", savedLocations);
+  renderLocChips();
+}
 function renderLocChips() {
-  const current = new Set(locParts().map(s => s.toLowerCase()));
-  $("#loc-chips").innerHTML = LOCATIONS.map(([key, label]) =>
-    `<button type="button" class="chip" data-loc="${key}" aria-pressed="${current.has(key)}">${label}</button>`).join("");
+  const parts = locParts();
+  const chip = (value, label) =>
+    `<button type="button" class="chip" data-loc="${esc(value)}" aria-pressed="${chipAt(parts, value) >= 0}">${esc(label)}</button>`;
+  $("#loc-chips").innerHTML = LOCATIONS.map(([key, label]) => chip(key, label)).join("")
+    + savedLocations.map(v => `<span class="chip-saved">${chip(v, v)}<button type="button" class="chip-x" data-forget="${esc(v)}"
+        title="Remove ${esc(v)} from saved places" aria-label="Remove ${esc(v)} from saved places">×</button></span>`).join("");
 }
 $("#loc-chips").addEventListener("click", e => {
+  const forget = e.target.closest("[data-forget]");
+  if (forget) {
+    savedLocations = savedLocations.filter(v => v !== forget.dataset.forget);
+    store.set("savedLocations", savedLocations);
+    return renderLocChips();
+  }
   const btn = e.target.closest("[data-loc]");
   if (!btn) return;
-  const key = btn.dataset.loc;
-  let parts = locParts();
-  parts = parts.some(p => p.toLowerCase() === key) ? parts.filter(p => p.toLowerCase() !== key) : [...parts, key];
+  const value = btn.dataset.loc, parts = locParts(), at = chipAt(parts, value);
+  if (at >= 0) parts.splice(at, splitLoc(value).length); else parts.push(value);
   $("#f-location").value = parts.join(", ");
   renderLocChips(); previewLocation(); saveForm();
 });
@@ -842,7 +874,17 @@ async function startSearch() {
   try {
     const job = await api("/api/search", { method: "POST", body: JSON.stringify(body) });
     attachJob(job, body);
+    saveSearchedLocations(body.location);
   } catch (err) { toast(err.message, true); }
+}
+
+// After a search starts, keep each place it used as a chip: "Russia" for "russia", "Austin, TX" as typed.
+async function saveSearchedLocations(text) {
+  if (!text) return;
+  try {
+    const d = await api("/api/places?q=" + encodeURIComponent(text));
+    rememberLocations(d.places.map(p => p.known && !p.input.includes(",") ? p.name : p.input));
+  } catch { /* the chips are a convenience */ }
 }
 
 /* ---------- job description ---------- */
